@@ -2,7 +2,7 @@ import numpy
 import numba
 from random import shuffle as __shuffle
 
-from holo.types_ext import _2dArray_Float, _1dArray_Float
+from holo.types_ext import _2dArray_Float
 
 
 def swapRow(array:_2dArray_Float, x1:int, x2:int)->None:

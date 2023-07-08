@@ -1,12 +1,10 @@
 from collections.abc import Iterable
 from typing import (
-    Iterable, Any, Sequence, TextIO, Tuple, NamedTuple,
-    Generic, TypeVar, Callable, ContextManager, Mapping,
-    Sized, Generator, cast,
+    Iterable, Any, TextIO, NamedTuple,
+    Callable, Mapping, Sized, Generator, cast,
 )
-from typing_extensions import ParamSpec, Literal, Self, TypeVarTuple, Unpack
+from typing_extensions import Literal
 import sys
-import traceback
 
 from holo.calc import divmod_rec
 

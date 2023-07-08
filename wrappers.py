@@ -1,13 +1,6 @@
 
-from collections.abc import Iterable
-from typing import (
-    Iterable, Any, Sequence, TextIO, Tuple, NamedTuple,
-    Generic, TypeVar, Callable, ContextManager, Mapping,
-    Sized, Generator, cast,
-)
-from typing_extensions import ParamSpec, Literal, Self, TypeVarTuple, Unpack
-import sys
-import traceback
+from typing import TextIO, TypeVar, Callable
+from typing_extensions import ParamSpec, Literal
 
 from holo import print_exception
 

@@ -3,7 +3,6 @@ from typing_extensions import Literal
 import pathlib
 from io import StringIO as _StringIO
 import random as _random
-from math import log as _log, floor as _floor
 
 def combinePaths(*args:str)->str:
     if len(args) == 0:
