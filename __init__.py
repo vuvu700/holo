@@ -1,10 +1,12 @@
+import sys
 from collections.abc import Iterable
 from typing import (
     Iterable, Any, Sequence, TextIO,
     Generic, TypeVar, ContextManager,
 )
-from typing_extensions import Literal, Self, TypeVarTuple, Unpack
-import sys
+if sys.version_info < (3, 11):
+    from typing_extensions import Literal, Self, TypeVarTuple, Unpack
+else: from typing import Literal, Self, TypeVarTuple, Unpack
 import traceback
 
 __author__ = "Andrieu Ludovic"

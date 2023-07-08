@@ -3,7 +3,9 @@ from typing import (
     Iterable, Any, TextIO, NamedTuple,
     Callable, Mapping, Sized, Generator, cast,
 )
-from typing_extensions import Literal
+import sys
+if sys.version_info < (3, 11): from typing_extensions import Literal
+else: from typing import Literal
 import sys
 
 from holo.calc import divmod_rec

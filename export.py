@@ -1,6 +1,8 @@
-"""this script will export the holo module"""
+import sys
 from typing import Any, Generator, Iterable, NamedTuple, Union, overload
-from typing_extensions import Literal, Self
+if sys.version_info < (3, 11):
+    from typing_extensions import Literal, Self
+else: from typing import Literal, Self
 from pathlib import Path
 import os
 import ast

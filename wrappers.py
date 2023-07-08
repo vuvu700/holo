@@ -1,6 +1,7 @@
-
 from typing import TextIO, TypeVar, Callable
-from typing_extensions import ParamSpec, Literal
+import sys
+if sys.version_info < (3, 11): from typing_extensions import ParamSpec, Literal
+else: from typing import ParamSpec, Literal
 
 from holo import print_exception
 

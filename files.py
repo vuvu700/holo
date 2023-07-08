@@ -1,5 +1,7 @@
 import os
-from typing_extensions import Literal
+import sys
+if sys.version_info < (3, 11): from typing_extensions import Literal
+else: from typing import Literal
 import pathlib
 from io import StringIO as _StringIO
 import random as _random

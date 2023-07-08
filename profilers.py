@@ -3,7 +3,9 @@ from time import perf_counter
 from io import StringIO
 
 from typing import Iterable, Callable, Any, Iterable, Generic, TypeVar, ContextManager
-from typing_extensions import LiteralString, ParamSpec
+import sys
+if sys.version_info < (3, 11): from typing_extensions import LiteralString, ParamSpec
+else: from typing import LiteralString, ParamSpec
 
 
 _P = ParamSpec("_P")

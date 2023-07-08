@@ -1,7 +1,9 @@
 import numpy
 from typing import TYPE_CHECKING, Tuple
+import sys
 
-if TYPE_CHECKING:
+
+if TYPE_CHECKING or (sys.version_info >= (3, 11)):
     _Serie_Float = numpy.ndarray[int, numpy.dtype[numpy.floating]]
     _Serie_Integer = numpy.ndarray[int, numpy.dtype[numpy.integer]]
     _Serie_Boolean = numpy.ndarray[int, numpy.dtype[numpy.bool_]]

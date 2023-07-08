@@ -1,10 +1,10 @@
 import sys
-from typing import TextIO
 import time
 from datetime import datetime
 
-from typing import Union
-from typing_extensions import Literal
+from typing import Union, TextIO
+if sys.version_info < (3, 11): from typing_extensions import Literal
+else: from typing import Literal
 
 FULL_TIME_FORMAT = "%d/%m/%Y %H:%M:%S"
 HOUR_TIME_FORMAT = "%H:%M:%S"
