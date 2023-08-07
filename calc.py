@@ -1,5 +1,5 @@
 from math  import gcd, ceil, sqrt, factorial as fac
-from typing import TypeVar
+from __typing import TypeVar
 from decimal import Decimal, getcontext
 getcontext().prec = 28
 

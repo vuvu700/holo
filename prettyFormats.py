@@ -1,21 +1,23 @@
 from collections.abc import Iterable
-from typing import (
-    Iterable, Any, TextIO, NamedTuple,
-    Callable, Mapping, Sized, Generator, cast,
+from __typing import (
+    Any, TextIO, NamedTuple,
+    Callable, Mapping, TypeVar,
+    Sized, Generator, cast, Literal,
+    TypeGuard,
 )
-import sys
-if sys.version_info < (3, 11): from typing_extensions import Literal
-else: from typing import Literal
 import sys
 
 from holo.calc import divmod_rec
 
-def isinstanceNamedTuple(obj:object)->bool:
+_T = TypeVar("_T")
+
+
+def isinstanceNamedTuple(obj:object)->TypeGuard[NamedTuple]:
     return (isinstance(obj, tuple) and hasattr(obj, '_asdict') and hasattr(obj, '_fields'))
 
 def __prettyPrint_internal(
         obj:object, indentSpaces:int, stream:"TextIO", compactUnder:"int|None", compactOver:"int|None",
-        currLineIndent:int, specificFormats:"dict[type, Callable[[Any], str]]|None", forceCompact:bool,
+        currLineIndent:int, specificFormats:"dict[type[_T], Callable[[_T], str]]|None", forceCompact:bool,
         toStringFunc:"Callable[[object], str]", printClassName:"bool|None", indentSequence:str):
     """`compactUnder` if the size (in elts) of the object is under its value, print it more compactly\n
     `specificFormats` is a dict: type -> (func -> obj -> str), if an obj's correspond use this to print\n
@@ -53,9 +55,7 @@ def __prettyPrint_internal(
         compactPrint = ((compactUnder is not None) and (objSize <= compactUnder))
         compactPrint = (compactPrint is True) or ((compactOver is not None) and (objSize >= compactOver))
 
-    if isinstance(obj, Mapping) or isinstanceNamedTuple(obj): # Mapping and NamedTuple can be iterable
-        if not isinstance(obj, Mapping): obj = cast(NamedTuple, obj) # NamedTuple can't be isinstanced => use a trick
-
+    if isinstance(obj, Mapping) or isinstanceNamedTuple(obj): # /!\ Mapping and NamedTuple can be iterable
         if printClassName is True: stream.write(obj.__class__.__name__)
         if type(obj) in typesSpecialDelim:
             stream.write(specialDelimChars[type(obj)][0])
@@ -137,10 +137,9 @@ def __prettyPrint_internal(
         else : stream.write(toStringFunc(obj))
         return None
 
-
 def prettyPrint(
         obj:object, indents:int=4, indentSequence:str=" ", compact:"tuple[int|None, int|None]|bool|None"=False,
-        stream:"TextIO|None"=None, specificFormats:"dict[type, Callable[[Any], str]]|None"=None, end:"str|None"="\n",
+        stream:"TextIO|None"=None, specificFormats:"dict[type[_T], Callable[[_T], str]]|None"=None, end:"str|None"="\n",
         _defaultStrFunc:"Callable[[object], str]"=str, printClassName:"bool|None"=False)->None:
     """/!\\ may not be as optimized as pprint but prettier print\n
     default `stream` -> stdout\n
@@ -168,28 +167,28 @@ def prettyPrint(
 
 def prettyTime(t:float)->str:
     """print a time value in a more redable way"""
-    if t == 0.: return "0. sec"
+    if t == 0.: return "0 sec"
     if t < 1.0: # small scale
         if t < 0.1e-9: # less than nano scale
             return f"{t:.3e} sec"
         elif t < 0.1e-6: # nano
-            return f"{round(t*1e9, 3)} ns"
+            return f"{t*1e9:.3f} ns"
         elif t < 0.1e-3: # micro
-            return f"{round(t*1e6, 3)} μs"
+            return f"{t*1e6:.3f} μs"
         else: # milli
-            return f"{round(t*1e3, 3)} ms"
+            return f"{t*1e3:.3f} ms"
     elif t < 60.: # seconds
         return f"{t:.3f} sec"
-    elif t < (60. * 60): # minutes
-        return f"{t//60} min {round(t%60, 1)} sec"
-    elif t < (60. * 60 * 24): # hours
-        (nbH, nbMin, nbSec) = divmod_rec(int(t), 3600, 60)
-        return f"{nbH} h {nbMin} min {nbSec} sec"
-    elif t < (60. * 60 * 24 * 7): # days (high res)
-        (nbDay, nbH, nbMin, _) = divmod_rec(int(t), 3600*24, 3600, 60)
-        return f"{nbDay} day {nbH} h {nbMin} min"
-    else: # days (low res)
-        return f"{round(t/(3600*24), 1)} day"
+    elif t < (3600.): # minutes
+        return f"{int(t//60)} min {t%60:.1f} sec"
+    elif t < (3600. * 24): # hours
+        (nbH, nbMin, nbSec) = divmod_rec(t, 3600, 60)
+        return f"{int(nbH)} h {int(nbMin)} min {nbSec:.1f} sec"
+    elif t < (3600.* 24 * 7): # few days (high res)
+        (nbDay, nbH, nbMin, nbSec) = divmod_rec(t, 3600*24, 3600, 60)
+        return f"{int(nbDay)} day {int(nbH)} h {int(nbMin)} min {nbSec:.1f} sec"
+    else: # many days (low res)
+        return f"{t/(3600*24):.1f} day"
 
 def get_prettyTime_Formater(
         timeScale:"Literal['ns', 'us', 'ms', 's', 'min', 'h', 'day', 'days']|None"

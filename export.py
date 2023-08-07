@@ -1,8 +1,7 @@
-import sys
-from typing import Any, Generator, Iterable, NamedTuple, Union, overload
-if sys.version_info < (3, 11):
-    from typing_extensions import Literal, Self
-else: from typing import Literal, Self
+from __typing import (
+    Any, Generator, Iterable, NamedTuple,
+    Union, overload, Literal, Self, 
+)
 from pathlib import Path
 import os
 import ast

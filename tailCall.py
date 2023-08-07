@@ -1,7 +1,4 @@
-from typing import (Generic, TypeVar, Callable)
-import sys
-if sys.version_info < (3, 11): from typing_extensions import ParamSpec, NoReturn
-else: from typing import ParamSpec, NoReturn
+from __typing import (Generic, TypeVar, Callable, ParamSpec, NoReturn)
 
 
 _T = TypeVar("_T")

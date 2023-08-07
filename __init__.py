@@ -1,15 +1,16 @@
 import sys
 from collections.abc import Iterable
-from typing import (
-    Iterable, Any, Sequence, TextIO,
-    Generic, TypeVar, ContextManager,
+from __typing import (
+    TypeVar, Any, Sequence, TextIO, Literal, 
+    Generic, Unpack, TypeVarTuple, ContextManager, Self,
 )
-if sys.version_info < (3, 11):
-    from typing_extensions import Literal, Self, TypeVarTuple, Unpack
-else: from typing import Literal, Self, TypeVarTuple, Unpack
 import traceback
 
 __author__ = "Andrieu Ludovic"
+
+from holo.dummys import DummyContext
+from holo.prettyFormats import prettyPrint, prettyTime
+
 
 _T = TypeVar("_T")
 
@@ -87,92 +88,92 @@ def count(iterable:Iterable, doReturnListe:bool=False)->"dict[Any, int] | list[t
 
 
 
-def paternValidation(string:str, patern:str)->"tuple[bool, dict[str, int|float|str]]":
-    """test if the `string` match the patern and return the values extracted from it.
-    `patern` is a rule that the string have to respect :
+def patternValidation(string:str, pattern:str)->"tuple[bool, dict[str, int|float|str]]":
+    """test if the `string` match the pattern and return the values extracted from it.
+    `pattern` is a rule that the string have to respect :
     \t-the same order have to be respected between all items
-    \t-every part with $varName:T$ designate variables, and their type
-    \t\tT : (f->float, d->int, s->string), if writen as $varName$ T=string is used,
+    \t-every part with <varName:T> designate variables, and their type
+    \t\tT : (f->float, d->int, s->string), if writen as <varName> T=string is used,
     \t\tif T=string, the string is interupted when the next rule is validated
     \t-every part with [abc] is a set of characters to ignore until the next character isn't in the set
     \t\tif writed like [a-z] the set will be all chars in the range of a to z (included), in the ascii table
     \t-every regular part of the string must be inside, in same order
     exemple of pattern: "abcde_[fg]_<v1:d>_ <v2:d> yte <v3>" , will return {"v1":int(str), "v2":float(str)), "v3":str}
     """
-    def generateIgnoreCharSet(patern:str, indexStart:int)->"tuple[set[str], int]":
-        """generate the set of characters for the [...] rule and return a tuple(set of char, new index patern)"""
+    def generateIgnoreCharSet(pattern:str, indexStart:int)->"tuple[set[str], int]":
+        """generate the set of characters for the [...] rule and return a tuple(set of char, new index pattern)"""
         # consider that indexStart is the index of '[' that start the rule
-        if patern[indexStart] != '[':
+        if pattern[indexStart] != '[':
             raise ValueError(f"indexStart={indexStart} doesn't designate an entry point for the [...] rule")
 
-        ignoreCharSet = set()
-        index = indexStart + 1
-        while index < len(patern): # as long as the patern isn't finished and and the size is sufficient
+        ignoreCharSet:set[str] = set()
+        index:int = indexStart + 1
+        while index < len(pattern): # as long as the pattern isn't finished and and the size is sufficient
             # end of the block
-            if patern[index] == ']':
+            if pattern[index] == ']':
                 return (ignoreCharSet, index+1)
 
             # it is a range -> generate the range in the set
-            elif (index+2 < len(patern)) and (patern[index+1] == '-')  and (patern[index+2] != ']'):
-                chrStart_i, chrEnd_i = ord(patern[index]), ord(patern[index+2])
-                step = -1 if chrStart_i < chrEnd_i else 1
-                # add to the current set the chars in the range patern[index] -> patern[index+2] (both included, can be decresing order)
-                ignoreCharSet.update( [i for i in range(chrStart_i, chrEnd_i + step, step)] )
+            elif (index+2 < len(pattern)) and (pattern[index+1] == '-')  and (pattern[index+2] != ']'):
+                chrStart_i, chrEnd_i = ord(pattern[index]), ord(pattern[index+2])
+                step = -1 if chrStart_i > chrEnd_i else 1
+                # add to the current set the chars in the range pattern[index] -> pattern[index+2] (both included, can be decresing order)
+                ignoreCharSet.update(map(chr, range(chrStart_i, chrEnd_i+step, step)))
                 index += 3
 
             # not a range so a normal char to add
             else:
-                ignoreCharSet.add(patern[index])
+                ignoreCharSet.add(pattern[index])
                 index += 1
 
-        #it didn't reached the end of the block, but the end of the patern
-        raise ValueError(f"patern invalide from index {indexStart} to {index}:\n\tset to ignore is malformed -> invalid delimitation")
+        #it didn't reached the end of the block, but the end of the pattern
+        raise ValueError(f"pattern invalide from index {indexStart} to {index}:\n\tset to ignore is malformed -> invalid delimitation")
 
 
 
 
     dictVars:"dict[str, int|float|str]" = dict()
 
-    indexString = 0
-    indexPatern = 0
-    # while either the patern or the string have to get proccesed
-    while (indexString < len(string)) and (indexPatern < len(patern)):
+    indexString:int = 0
+    indexPattern:int = 0
+    # while either the pattern or the string have to get proccesed
+    while (indexString < len(string)) and (indexPattern < len(pattern)):
 
         #start of an ignore set
-        if patern[indexPatern] == '[':
-            charIgnore_set, indexPatern = generateIgnoreCharSet(patern, indexPatern)
+        if pattern[indexPattern] == '[':
+            charIgnore_set, indexPattern = generateIgnoreCharSet(pattern, indexPattern)
             while (indexString < len(string)) and (string[indexString] in charIgnore_set): # the char is in the [...] rule -> skip it
                 indexString += 1
 
 
 
         #start of a var
-        elif patern[indexPatern] == '<':
+        elif pattern[indexPattern] == '<':
 
-            #get the name of the var from the patern
-            varName_startIndex = indexPatern+1
-            varName_endIndex = indexPatern+1
-            while (varName_endIndex < len(patern)) and (patern[varName_endIndex] not in [':', '>']): #it search the end of the name
+            #get the name of the var from the pattern
+            varName_startIndex:int = indexPattern+1
+            varName_endIndex:int = indexPattern+1
+            while (varName_endIndex < len(pattern)) and (pattern[varName_endIndex] not in [':', '>']): #it search the end of the name
                 varName_endIndex += 1
-            varName = patern[varName_startIndex: varName_endIndex]
-            indexPatern = varName_endIndex
+            varName:str = pattern[varName_startIndex: varName_endIndex]
+            indexPattern:int = varName_endIndex
 
             #get the type of the var
-            if indexPatern < len(patern): #because we must have at least a '>' remaining
+            if indexPattern < len(pattern): #because we must have at least a '>' remaining
                 # the type has been specified
-                if ((patern[indexPatern] == ':') and
-                    (indexPatern+2 < len(patern)) and (patern[indexPatern+2] == '>')):
-                    varType = patern[indexPatern + 1]
-                    indexPatern += 3 # after the >
-                elif patern[indexPatern] == '>': # type omitted->s
+                if ((pattern[indexPattern] == ':') and
+                    (indexPattern+2 < len(pattern)) and (pattern[indexPattern+2] == '>')):
+                    varType = pattern[indexPattern + 1]
+                    indexPattern += 3 # after the >
+                elif pattern[indexPattern] == '>': # type omitted->s
                     varType = 's'
-                    indexPatern += 1 # after the >
-                else: raise ValueError(f"patern invalide at index {indexPatern}:\n\ta var is malformed -> invalid delimitation")
-            else: raise ValueError(f"patern invalide at index {indexPatern}:\n\ta var is malformed -> invalid delimitation")
+                    indexPattern += 1 # after the >
+                else: raise ValueError(f"pattern invalide at index {indexPattern}:\n\ta var is malformed -> invalid delimitation")
+            else: raise ValueError(f"pattern invalide at index {indexPattern}:\n\ta var is malformed -> invalid delimitation")
 
             #get the data from the string
-            varValue_startIndex = indexString
-            varValue_endIndex = indexString
+            varValue_startIndex:int = indexString
+            varValue_endIndex:int = indexString
             if varType in 'fd': # type == 'f' or type == 'd'
                 while (varValue_endIndex < len(string)) and (string[varValue_endIndex] in "0123456789"): # as long the number is int compatible
                     varValue_endIndex += 1
@@ -192,39 +193,39 @@ def paternValidation(string:str, patern:str)->"tuple[bool, dict[str, int|float|s
                     dictVars[varName] = float(string[varValue_startIndex: varValue_endIndex])
 
             elif varType == 's': # the var is a string, it's delimitation is the start of the next rule
-                if indexPatern < len(patern):
-                    if patern[indexPatern] == '[': #start of an ignore set
-                        charInterupt_set, _ = generateIgnoreCharSet(patern, indexPatern)
-                    elif patern[indexPatern] == '<': #start of a var
-                        raise NotImplementedError(f"patern invalide at index {indexPatern} (not implemented yet):\n\ta <...:s> can't be followed by another <...:T>")
+                if indexPattern < len(pattern):
+                    if pattern[indexPattern] == '[': #start of an ignore set
+                        charInterupt_set, _ = generateIgnoreCharSet(pattern, indexPattern)
+                    elif pattern[indexPattern] == '<': #start of a var
+                        raise NotImplementedError(f"pattern invalide at index {indexPattern} (not implemented yet):\n\ta <...:s> can't be followed by another <...:T>")
                     else: # normal matching rule
-                        charInterupt_set = set(patern[indexPatern])
+                        charInterupt_set = set(pattern[indexPattern])
 
                     while (varValue_endIndex < len(string)) and (string[varValue_endIndex] not in charInterupt_set): # as long the string isn't interfering with the next rule
                         varValue_endIndex += 1
-                else: # en of the patern reached so var will go to the end
+                else: # en of the pattern reached so var will go to the end
                     varValue_endIndex = len(string)
 
                 # add the value to the dict as type=str
                 dictVars[varName] = string[varValue_startIndex: varValue_endIndex]
 
-            else: raise ValueError(f"patern invalide at index {indexPatern-1}:\n\ta var is malformed -> invalid type or doesn't exist")
+            else: raise ValueError(f"pattern invalide at index {indexPattern-1}:\n\ta var is malformed -> invalid type or doesn't exist")
             indexString = varValue_endIndex
 
 
 
         else: #not on a special block
-            if string[indexString] == patern[indexPatern]: #match -> increment index
-                indexString += 1; indexPatern += 1
+            if string[indexString] == pattern[indexPattern]: #match -> increment index
+                indexString += 1; indexPattern += 1
             else:
                 break #match failed
 
     else: # process terminated without failure
-        if (indexString == len(string)) and (indexPatern == len(patern)):
-            #the end of path and string reached => the string match the patern
+        if (indexString == len(string)) and (indexPattern == len(pattern)):
+            #the end of path and string reached => the string match the pattern
             return (True, dictVars)
 
-        raise RuntimeError("an error happend") # bad dev
+        raise RuntimeError("an error happend") # bad developement
 
     return (False, dictVars)
 
@@ -232,7 +233,7 @@ def paternValidation(string:str, patern:str)->"tuple[bool, dict[str, int|float|s
 def int_to_bytes(number:int)->bytes:
     """converte a number like 1234(=0x04d2) - b"\x04\xd2"> """
     size = len(hex(number))
-    return number.to_bytes(  (size//2-1) + size%2, "big")
+    return number.to_bytes((size//2-1) + size%2, "big")
 
 
 
@@ -289,12 +290,6 @@ class Pointer(Generic[_T]):
     def __repr__(self)->str:
         return f"{self.__class__.__name__}({repr(self.__value) if self.__setted is True else ''})"
 
-
-
-
-class DummyContext(ContextManager):
-    def __enter__(self)->None: pass
-    def __exit__(self, *args, **kwargs)->None: pass
 
 _Contexts = TypeVarTuple("_Contexts") # NOTE: can't be bound to contexts only:(
 class MultiContext(tuple, ContextManager, Generic[Unpack[_Contexts]]):

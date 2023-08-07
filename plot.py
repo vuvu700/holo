@@ -1,31 +1,28 @@
-import math
-import numpy
-import matplotlib.pyplot as plt
-from typing import Callable
-import sys
-if sys.version_info < (3, 11): from typing_extensions import Literal
-else: from typing import Literal
-from inspect import getfullargspec
+import math as __math
+import numpy as __numpy
+import matplotlib.pyplot as __plt
+from typing import Callable as __Callable, Literal as __Literal
+from inspect import getfullargspec as __getfullargspec
 
 
 
 def plot1dFunc(
-        func:"Callable[[float|numpy.ndarray], float|int|numpy.ndarray]",
+        func:"__Callable[[float|__numpy.ndarray], float|int|__numpy.ndarray]",
         xStart:"float|int", xStop:"float|int", nbPoints:int=100,
         xLabel:"str|bool"=False, yLabel:"str|bool"=False, autoLabel:bool=False,
         plotLabel:"str|None"=None, figName:"None|str"=None)->None:
     
-    fig = plt.figure(figName)
+    fig = __plt.figure(figName)
     ax = fig.add_subplot(1, 1, 1)
     
     if autoLabel is True:
         xLabel = True
         yLabel = True
 
-    X = numpy.linspace(xStart, xStop, nbPoints)
+    X = __numpy.linspace(xStart, xStop, nbPoints)
     try:
         Y = func(X)
-        if not isinstance(Y, numpy.ndarray):
+        if not isinstance(Y, __numpy.ndarray):
             raise TypeError
     except:
         Y = [func(x) for x in X]
@@ -36,7 +33,7 @@ def plot1dFunc(
     # Set axes label for the plot
     if xLabel is not False:
         if xLabel is True: # auto
-            ax.set_xlabel(getfullargspec(func).args[0])
+            ax.set_xlabel(__getfullargspec(func).args[0])
         else:
             ax.set_xlabel(xLabel)
     else:
@@ -53,12 +50,12 @@ def plot1dFunc(
     fig.show()
 
 def plot2dFunc(
-        func:"Callable[[float|numpy.ndarray, float|numpy.ndarray], float|int|numpy.ndarray]",
+        func:"__Callable[[float|__numpy.ndarray, float|__numpy.ndarray], float|int|__numpy.ndarray]",
         xStart:"float|int", xStop:"float|int", yStart:"float|int", yStop:"float|int",
         xNbPoints:int=100, yNbPoints:int=100,
         xLabel:"str|bool"=False, yLabel:"str|bool"=False, zLabel:"str|bool"=False,
         autoLabel:bool=False, plotLabel:"str|None"=None, figName:"None|str"=None,
-        zScale:"Literal['linear', 'log10', 'ln']|None"=None)->None:
+        zScale:"__Literal['linear', 'log10', 'ln']|None"=None)->None:
     
     CMAP = "viridis"
     if autoLabel is True:
@@ -68,28 +65,28 @@ def plot2dFunc(
 
     # for now dont suport differnet nb of points, compute even nb of pts while keeping the same total
     if xNbPoints != yNbPoints:
-        yNbPoints = math.ceil(math.sqrt(yNbPoints * xNbPoints))
+        yNbPoints = __math.ceil(__math.sqrt(yNbPoints * xNbPoints))
         xNbPoints = yNbPoints
 
-    fig = plt.figure(figName)
+    fig = __plt.figure(figName)
     ax3D = fig.add_subplot(1, 2, 1, projection='3d')
     ax2D = fig.add_subplot(1, 2, 2)
 
-    X = numpy.linspace(xStart, xStop, xNbPoints)
-    Y = numpy.linspace(yStart, yStop, yNbPoints)
-    X_mesh, Y_mesh = numpy.meshgrid(X, Y)
+    X = __numpy.linspace(xStart, xStop, xNbPoints)
+    Y = __numpy.linspace(yStart, yStop, yNbPoints)
+    X_mesh, Y_mesh = __numpy.meshgrid(X, Y)
     try:
         Z = func(X_mesh, Y_mesh)
-        if not isinstance(Z, numpy.ndarray):
+        if not isinstance(Z, __numpy.ndarray):
             raise TypeError
     except:
-        Z = numpy.array([[func(x, y) for y in Y] for x in X])
+        Z = __numpy.array([[func(x, y) for y in Y] for x in X])
 
     if zScale is not None:
         if (zScale == "log10") or (zScale == "log"):
-            Z = numpy.log10(Z)
+            Z = __numpy.log10(Z)
         elif (zScale == "ln"):
-            Z = numpy.log(Z)
+            Z = __numpy.log(Z)
 
     # 3D plot
     surf = ax3D.plot_surface(X_mesh, Y_mesh, Z, cmap=CMAP, label=plotLabel)
@@ -101,8 +98,8 @@ def plot2dFunc(
     # Set axes label for the 3D and 2D plots
     if xLabel is not False:
         if xLabel is True: # auto
-            ax3D.set_xlabel(getfullargspec(func).args[0])
-            ax2D.set_xlabel(getfullargspec(func).args[0])
+            ax3D.set_xlabel(__getfullargspec(func).args[0])
+            ax2D.set_xlabel(__getfullargspec(func).args[0])
         else:
             ax3D.set_xlabel(xLabel)
             ax2D.set_xlabel(xLabel)
@@ -112,8 +109,8 @@ def plot2dFunc(
 
     if yLabel is not False:
         if yLabel is True: # auto
-            ax3D.set_ylabel(getfullargspec(func).args[1])
-            ax2D.set_ylabel(getfullargspec(func).args[1])
+            ax3D.set_ylabel(__getfullargspec(func).args[1])
+            ax2D.set_ylabel(__getfullargspec(func).args[1])
         else:
             ax3D.set_ylabel(yLabel)
             ax2D.set_ylabel(yLabel)
@@ -133,7 +130,7 @@ def plot2dFunc(
     fig.show()
 
 
-def plotImage(array:numpy.ndarray)->None:
+def plotImage(array:__numpy.ndarray)->None:
     raise NotImplementedError("not imlplemented yet")
 
 plot = plot1dFunc

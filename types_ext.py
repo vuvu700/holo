@@ -1,7 +1,6 @@
+import sys
 import numpy
 from typing import TYPE_CHECKING, Tuple
-import sys
-
 
 if TYPE_CHECKING or (sys.version_info >= (3, 11)):
     _Serie_Float = numpy.ndarray[int, numpy.dtype[numpy.floating]]

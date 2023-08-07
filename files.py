@@ -1,17 +1,15 @@
 import os
-import sys
-if sys.version_info < (3, 11): from typing_extensions import Literal
-else: from typing import Literal
-import pathlib
+from __typing import Literal
+from pathlib import Path
 from io import StringIO as _StringIO
 import random as _random
 
-def combinePaths(*args:str)->str:
+def combinePaths(*args:"str|Path")->str:
     if len(args) == 0:
         raise IndexError("args is empty, no paths to combine")
-    path:"pathlib.Path" = pathlib.Path(args[0])
+    path:"Path" = Path(args[0])
     for index in range(1, len(args)):
-        path = pathlib.Path(path).joinpath(args[index])
+        path = Path(path).joinpath(args[index])
     return path.as_posix()
 
 
@@ -121,27 +119,27 @@ def getParentDir(path:str)->str:
 
 
 
-def mkDirRec(directory:"str|pathlib.Path")->None:
+def mkDirRec(directory:"str|Path")->None:
     """create (if necessary) the full directory's path asked"""
-    pathlib.Path(directory).mkdir(parents=True, exist_ok=True)
+    Path(directory).mkdir(parents=True, exist_ok=True)
 
 
-def get_subdirectorys(directory:"str")->"list[str]":
+def get_subdirectorys(directory:"str|Path")->"list[str]":
     """return teh name of all the directorys insibe the targeted directory"""
     return [dirname for dirname in os.listdir(directory) if os.path.isdir(combinePaths(directory, dirname))]
 
-def get_subfiles(directory:"str")->"list[str]":
+def get_subfiles(directory:"str|Path")->"list[str]":
     """return teh name of all the directorys insibe the targeted directory"""
     return [filename for filename in os.listdir(directory) if os.path.isfile(combinePaths(directory, filename))]
 
-def get_subfilesAndDirs(directory:"str")->"list[str]":
+def get_subfilesAndDirs(directory:"str|Path")->"list[str]":
     """return teh name of all the directorys insibe the targeted directory"""
     test = lambda path: (os.path.isfile(path) is True) or (os.path.isdir(path) is True)
     return [filename for filename in os.listdir(directory) if test(combinePaths(directory, filename))]
 
 
 def get_unique_name(
-        directory:"str|None", onlyNumbers:bool=False,
+        directory:"str|Path|None", onlyNumbers:bool=False,
         nbCharacters:"int|None"=16, randomChoice:bool=True,
         guidlike:bool=True, allowResize:bool=True,
         prefix:"str|None"=None, suffix:"str|None"=None,
