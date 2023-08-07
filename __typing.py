@@ -7,7 +7,6 @@ from typing import (
     Callable, Mapping, Sized, cast, NoReturn,
 
 )
-import typing_extensions
 if sys.version_info < (3, 11):
     from typing_extensions import (
         Literal, Self, TypeVarTuple,

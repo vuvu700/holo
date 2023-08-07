@@ -1,5 +1,5 @@
 import os
-from __typing import Literal
+from holo.__typing import Literal
 from pathlib import Path
 from io import StringIO as _StringIO
 import random as _random

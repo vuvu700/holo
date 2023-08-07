@@ -1,6 +1,6 @@
 import sys
 from collections.abc import Iterable
-from __typing import (
+from holo.__typing import (
     TypeVar, Any, Sequence, TextIO, Literal, 
     Generic, Unpack, TypeVarTuple, ContextManager, Self,
 )

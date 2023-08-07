@@ -1,5 +1,5 @@
 from math  import gcd, ceil, sqrt, factorial as fac
-from __typing import TypeVar
+from holo.__typing import TypeVar
 from decimal import Decimal, getcontext
 getcontext().prec = 28
 

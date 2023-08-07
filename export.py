@@ -1,4 +1,4 @@
-from __typing import (
+from holo.__typing import (
     Any, Generator, Iterable, NamedTuple,
     Union, overload, Literal, Self, 
 )

@@ -1,7 +1,7 @@
 from collections import deque
 from time import perf_counter
 
-from __typing import (
+from holo.__typing import (
     Iterable, Callable, Any, Iterable,
     Generic, TypeVar, ContextManager,
     LiteralString, ParamSpec,

@@ -1,5 +1,5 @@
 from collections.abc import Iterable
-from __typing import (
+from holo.__typing import (
     Any, TextIO, NamedTuple,
     Callable, Mapping, TypeVar,
     Sized, Generator, cast, Literal,

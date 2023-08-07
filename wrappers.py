@@ -1,4 +1,4 @@
-from __typing import (TextIO, TypeVar, Callable, ParamSpec, Literal)
+from holo.__typing import (TextIO, TypeVar, Callable, ParamSpec, Literal)
 
 from holo import print_exception
 from holo.dummys import dummyWrapper, dummyWrapperOfWrapper
