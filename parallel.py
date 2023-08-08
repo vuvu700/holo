@@ -4,6 +4,7 @@ import time
 from typing import Callable, Any, Iterable
 from array import array
 
+from holo import Pointer
 
 
 # TODO: ajouter un moyen de clear les outputs deja calculés (seulement possible si )
@@ -18,7 +19,7 @@ class Worker(Thread):
             queueOutputs:"Queue[tuple[Any, Any]]",
             verbose:int=1, getItemTimeout:"float|None"=None,
             stopWhenOutOfWork:bool=False,
-            p_workDoneCounter:"memoryview|None"=None)->None:
+            p_workDoneCounter:"Pointer[int]|None"=None)->None:
         """ * `workFunction` is the function that wil be called each time, it arg will be the value from queueInputs, \
                 it will retun a result or None, None mean no result will be added to the queue\n
             * `queueInputs` is the queue where the inputs will be getted\n
@@ -39,7 +40,7 @@ class Worker(Thread):
         self.__waitingInputs:bool = False
         self.__getItemBlock:bool = not isinstance(self.getItemTimeout, type(None))
         self.__stopWhenOutOfWork:bool = stopWhenOutOfWork
-        self.__p_workDoneCounter:"memoryview|None" = p_workDoneCounter
+        self.__p_workDoneCounter:"Pointer[int]|None" = p_workDoneCounter
 
     def run(self):
         while self.__running is True:
@@ -67,7 +68,7 @@ class Worker(Thread):
 
             finally:
                 if self.__p_workDoneCounter is not None:
-                    self.__p_workDoneCounter[0] += 1
+                    self.__p_workDoneCounter.value += 1
                 self.queueInputs.task_done()
         
         if (self.__running is True) or (self.__stoped is True):
@@ -129,7 +130,7 @@ class WorkersPool:
         self.stopWorkersWhenOutOfWork:bool = stopWorkersWhenOutOfWork
         self.__addedWorkCount:int = 0
         self.__finishedWorkCount:int = 0
-        self.__finishedWorkCount_perWorker:"array[int]" = array("Q", [0] * self.nbWorkers) # unsigned long long
+        self.__finishedWorkCount_perWorker:"list[Pointer[int]]" = [Pointer(0) for _ in range(self.nbWorkers)]
         self.__trackWorkProgress:bool = trackWorkProgress
 
         # create the queues needed
@@ -140,11 +141,10 @@ class WorkersPool:
 
         # create all the workers
         self.__workersList:"list[Worker]" = []
-        p_finishedWorkCount_perWorker = memoryview(self.__finishedWorkCount_perWorker)
         for workerIndex in range(self.nbWorkers):
 
             if self.__trackWorkProgress is True:
-                p_workDoneCounter = p_finishedWorkCount_perWorker[workerIndex: workerIndex+1]
+                p_workDoneCounter = self.__finishedWorkCount_perWorker[workerIndex]
             else:p_workDoneCounter = None
 
             self.__workersList.append(
@@ -258,14 +258,14 @@ class WorkersPool:
         # update the count
         new_finishedWorkCount:int = 0
         for indexWorker in range(self.nbWorkers):
-            new_finishedWorkCount += self.__finishedWorkCount_perWorker[indexWorker]
+            new_finishedWorkCount += self.__finishedWorkCount_perWorker[indexWorker].value
         self.__finishedWorkCount = new_finishedWorkCount
         
         return self.__finishedWorkCount
     
     def getNbWorkFinished_perWorker(self)->"list[int]":
         """return a copy of the count of finished work, for each worker"""
-        return self.__finishedWorkCount_perWorker.tolist()
+        return [ptr.value for ptr in self.__finishedWorkCount_perWorker]
 
     def clearOutputs(self)->bool:
         """try to clear the outputs and reset the counters of work, only possible if the work is finished"""
@@ -274,7 +274,7 @@ class WorkersPool:
             self.__addedWorkCount = 0
             self.__finishedWorkCount = 0
             for indexWorker in range(self.nbWorkers):
-                self.__finishedWorkCount_perWorker[indexWorker] = 0
+                self.__finishedWorkCount_perWorker[indexWorker].value = 0
 
             return True
         else:
