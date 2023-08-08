@@ -1,10 +1,9 @@
 import sys
 import time
+from pathlib import Path
 from datetime import datetime
 
-from typing import Union, TextIO
-if sys.version_info < (3, 11): from typing_extensions import Literal
-else: from typing import Literal
+from holo.__typing import Union, TextIO, Literal
 
 FULL_TIME_FORMAT = "%d/%m/%Y %H:%M:%S"
 HOUR_TIME_FORMAT = "%H:%M:%S"
@@ -18,8 +17,8 @@ class _LoggerWriter(TextIO):
         self.logFile:"TextIO" = logFile
         self.copyFile:"TextIO|None" = copyFile
         self.level:str = level
-        self.__timeLastWrite:float = -1.0
-        self.__timeLastInfos:float = -1.0
+        self.__timeLastWrite:float = 0.0
+        self.__timeLastInfos:float = 0.0
 
     @property
     def timeSinceLastWrite(self)->float:
@@ -48,20 +47,22 @@ class _LoggerWriter(TextIO):
     def write(self, message:str):
         """write the message, starting with some logging informations"""
         self.writeLogsInfos()
-        
-        self.logFile.write(message)
         if self.copyFile is not None:
             self.copyFile.write(message)
+        self.logFile.write(message)
 
     def flush(self):
         self.logFile.flush()
         if self.copyFile is not None:
             self.copyFile.flush()
 
+    def __del__(self)->None:
+        if (self.copyFile is not None) and (self.copyFile.closed is False):
+            self.copyFile.close()
 
 class Logger():
     def __init__(self,
-            filePath:str, encoding:"str|None"=None,
+            filePath:"str|Path", encoding:"str|None"=None,
             _noRePrint:"bool"=False)->None:
         aux = lambda var, cond: None if cond else var
         self.file:"TextIO|None" = None # to avoid more errors in __del__
@@ -92,4 +93,5 @@ class Logger():
     def __del__(self):
         if self.file is not None:
             self.revert("all")
-            self.file.close()
+            if self.file.closed is False:
+                self.file.close()
