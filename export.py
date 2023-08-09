@@ -1,6 +1,7 @@
-"""this script will export the holo module"""
-from typing import Any, Generator, Iterable, NamedTuple, Union, overload
-from typing_extensions import Literal, Self
+from holo.__typing import (
+    Any, Generator, Iterable, NamedTuple,
+    Union, overload, Literal, Self, 
+)
 from pathlib import Path
 import os
 import ast

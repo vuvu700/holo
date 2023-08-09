@@ -1,5 +1,4 @@
-from typing import (Generic, TypeVar, Callable)
-from typing_extensions import ParamSpec, NoReturn
+from holo.__typing import (Generic, TypeVar, Callable, ParamSpec, NoReturn)
 
 
 _T = TypeVar("_T")

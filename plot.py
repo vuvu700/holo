@@ -1,8 +1,7 @@
 import math as __math
 import numpy as __numpy
 import matplotlib.pyplot as __plt
-from typing import Callable as __Callable
-from typing_extensions import Literal as __Literal
+from typing import Callable as __Callable, Literal as __Literal
 from inspect import getfullargspec as __getfullargspec
 
 
