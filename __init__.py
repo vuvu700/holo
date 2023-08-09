@@ -330,3 +330,9 @@ def editTuple(oldTuple:"_Tuple", editAtIndex:int, newValue, checkType:bool=False
 
 
 
+def assertIsinstance(value:Any, type_:"type[_T]")->_T:
+    """assert the type of value using assert isinstance(...), ... \n
+    NOTE: using -OO makes this func equaivalent to cast(...)"""
+    assert isinstance(value, type_), TypeError(f"the type if value: {type(value)} isn't an instance of type_={type_}")
+    return value
+    

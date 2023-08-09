@@ -50,6 +50,7 @@ def __prettyPrint_internal(
         objSize:int = len(obj)
         compactPrint = ((compactUnder is not None) and (objSize <= compactUnder))
         compactPrint = (compactPrint is True) or ((compactOver is not None) and (objSize >= compactOver))
+    reccursiveForceCompact:bool = forceCompact
 
     if isinstance(obj, Mapping) or isinstanceNamedTuple(obj): # Mapping and NamedTuple can be iterable
         if not isinstance(obj, Mapping): obj = cast(NamedTuple, obj) # NamedTuple can't be isinstanced => use a trick
@@ -79,7 +80,7 @@ def __prettyPrint_internal(
             stream.write(": ")
             __prettyPrint_internal(
                 value, indentSpaces, stream, compactUnder, compactOver, currLineIndent+indentSpaces, specificFormats,
-                forceCompact=compactPrint, toStringFunc=toStringFunc, printClassName=printClassName, indentSequence=indentSequence,
+                forceCompact=reccursiveForceCompact, toStringFunc=toStringFunc, printClassName=printClassName, indentSequence=indentSequence,
             )
 
         if (compactPrint is False):
@@ -108,7 +109,7 @@ def __prettyPrint_internal(
             else: stream.write(newLineSequence)
             __prettyPrint_internal(
                 item, indentSpaces, stream, compactUnder, compactOver, currLineIndent+indentSpaces, specificFormats,
-                forceCompact=compactPrint, toStringFunc=toStringFunc, printClassName=printClassName, indentSequence=indentSequence,
+                forceCompact=reccursiveForceCompact, toStringFunc=toStringFunc, printClassName=printClassName, indentSequence=indentSequence,
 
             )
 
@@ -208,18 +209,18 @@ def get_prettyTime_Formater(
 
 def prettyDataSizeOctes(nbOctes:int)->str:
     """print a data size value in a more redable way"""
-    if nbOctes > 1e12: return f"{round(nbOctes*1e12, 3)} To"
-    elif nbOctes > 1e9: return f"{round(nbOctes*1e9, 3)} Go"
-    elif nbOctes > 1e6: return f"{round(nbOctes*1e6, 3)} Mo"
-    elif nbOctes > 1e3: return f"{round(nbOctes*1e3, 3)} Ko"
+    if nbOctes > 1e12: return f"{round(nbOctes/1e12, 3)} To"
+    elif nbOctes > 1e9: return f"{round(nbOctes/1e9, 3)} Go"
+    elif nbOctes > 1e6: return f"{round(nbOctes/1e6, 3)} Mo"
+    elif nbOctes > 1e3: return f"{round(nbOctes/1e3, 3)} Ko"
     else: return f"{nbOctes} o"
 
 def prettyDataSizeBytes(nbBytes:int)->str:
     """print a data size value in a more redable way"""
-    if nbBytes > 1e12: return f"{round(nbBytes*1e12, 3)} Tb"
-    elif nbBytes > 1e9: return f"{round(nbBytes*1e9, 3)} Gb"
-    elif nbBytes > 1e6: return f"{round(nbBytes*1e6, 3)} Mb"
-    elif nbBytes > 1e3: return f"{round(nbBytes*1e3, 3)} Kb"
+    if nbBytes > 1e12: return f"{round(nbBytes/1e12, 3)} Tb"
+    elif nbBytes > 1e9: return f"{round(nbBytes/1e9, 3)} Gb"
+    elif nbBytes > 1e6: return f"{round(nbBytes/1e6, 3)} Mb"
+    elif nbBytes > 1e3: return f"{round(nbBytes/1e3, 3)} Kb"
     else: return f"{nbBytes} b"
 
 
@@ -227,18 +228,18 @@ def get_prettyDataSizeOctes_Formater(dataSizeScale:"Literal['Ko', 'Mo', 'Go', 'T
     """print a time value in a more redable way"""
     return {
         None: prettyDataSizeOctes,
-        "Ko": lambda nbOctes: f"{round(nbOctes*1e3, 3)} Ko",
-        "Mo": lambda nbOctes: f"{round(nbOctes*1e6, 3)} Mo",
-        "Go": lambda nbOctes: f"{round(nbOctes*1e9, 3)} Go",
-        "To": lambda nbOctes: f"{round(nbOctes*1e12, 3)} To",
+        "Ko": lambda nbOctes: f"{round(nbOctes/1e3, 3)} Ko",
+        "Mo": lambda nbOctes: f"{round(nbOctes/1e6, 3)} Mo",
+        "Go": lambda nbOctes: f"{round(nbOctes/1e9, 3)} Go",
+        "To": lambda nbOctes: f"{round(nbOctes/1e12, 3)} To",
     }[dataSizeScale]
 
 def get_prettyDataSizeBytes_Formater(dataSizeScale:"Literal['Kb', 'Mb', 'Gb', 'Tb']|None")->"Callable[[float], str]":
     """print a time value in a more redable way"""
     return {
         None: prettyDataSizeBytes,
-        "Kb": lambda nbOctes: f"{round(nbOctes*1e3, 3)} Kb",
-        "Mb": lambda nbOctes: f"{round(nbOctes*1e6, 3)} Mb",
-        "Gb": lambda nbOctes: f"{round(nbOctes*1e9, 3)} Gb",
-        "Tb": lambda nbOctes: f"{round(nbOctes*1e12, 3)} Tb",
+        "Kb": lambda nbOctes: f"{round(nbOctes/1e3, 3)} Kb",
+        "Mb": lambda nbOctes: f"{round(nbOctes/1e6, 3)} Mb",
+        "Gb": lambda nbOctes: f"{round(nbOctes/1e9, 3)} Gb",
+        "Tb": lambda nbOctes: f"{round(nbOctes/1e12, 3)} Tb",
     }[dataSizeScale]

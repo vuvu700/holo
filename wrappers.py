@@ -22,12 +22,6 @@ def secureFunc(func:"Callable[_P, _T]", _failObject:"_FailType"=failObject, prin
             return _failObject
     return securedFunc
 
-@secureFunc
-def foo(a:int, b:int)->int:
-    return a + b
-
-foo(1, b=2)
-
 def secureWrapper(_failObject:"_FailType"=failObject, printErrors:bool=True):#->"Callable[[Callable[_P, _T]], Callable[_P, _T|_FailType]]": # the commented type hinting dont work properly
     """avoid errors being raised\n
     if an error happend, print them if `printErrors`, and return `_failObject`"""
