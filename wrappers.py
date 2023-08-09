@@ -19,12 +19,7 @@ def secureFunc(func:"Callable[_P, _T]", _failObject:"_FailType"=failObject, prin
             return _failObject
     return securedFunc
 
-<<<<<<< HEAD
 def secureWrapper(_failObject:"_FailType"=failObject, printErrors:bool=True):#->"Callable[[Callable[_P, _T]], Callable[_P, _T|_FailType]]": # the commented type hinting dont work properly
-=======
-
-def secureWrapper(_failObject:"_FailType"=failObject, printErrors:bool=True)->"Callable[[Callable[_P, _T]], Callable[_P, _T|_FailType]]":
->>>>>>> 9cfac6eaf500252d6fe05f9c5942bb219c7af793
     """avoid errors being raised\n
     if an error happend, print them if `printErrors`, and return `_failObject`"""
     def internal(func:"Callable[_P, _T]")->"Callable[_P, _T|_FailType]":

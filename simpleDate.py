@@ -33,10 +33,10 @@ class TimeUnite:
     "is a time unite that correspond to 1 second"
     __slots__ = ("fullUnites", "partialUnits")
     @overload
-    def __init__(self, nbUnites:int=1, nbPartialUnites:float=0., /, _directCopy:bool=False) -> None: ...
+    def __init__(self, nbUnites:int=1, nbPartialUnites:float=0., _directCopy:bool=False) -> None: ...
     @overload
-    def __init__(self, nbUnites:"int|float"=1, /) -> None: ...
-    def __init__(self, nbUnites:"int|float"=1, nbPartialUnites:float=0., /, _directCopy:bool=False) -> None:
+    def __init__(self, nbUnites:"int|float"=1, ) -> None: ...
+    def __init__(self, nbUnites:"int|float"=1, nbPartialUnites:float=0., _directCopy:bool=False) -> None:
         self.fullUnites:int; self.partialUnits:float
         if _directCopy is True:
             self.fullUnites = cast(int, nbUnites) # cast because of overload

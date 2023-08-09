@@ -15,8 +15,8 @@ class Profiler(Generic[_Categorie]):
     """mesure the times taken to do things, and get analytics with it"""
 
     def __init__(self,
-            categories:"list[_Categorie]", nbMesurements:int|None=None,
-            emaFactor:None|int=None, ignoreSimultaneousMesures:bool=False) -> None:
+            categories:"list[_Categorie]", nbMesurements:"int|None"=None,
+            emaFactor:"None|int"=None, ignoreSimultaneousMesures:bool=False) -> None:
         """`categories`:list[str] is the names of tracked mesures\n
         `nbMesurements`int is the max nb of mesures to keep\n
         `ignoreSimultaneousMesures`:bool is whether an error will be raised when \
@@ -40,7 +40,7 @@ class Profiler(Generic[_Categorie]):
     def categories(self)->"list[_Categorie]":
         return self._categories
     @property
-    def nbMesurements(self)->int|None:
+    def nbMesurements(self)->"int|None":
         return self.__nbMesurements
     @nbMesurements.setter
     def nbMesurements(self, value:int)->None:
@@ -88,7 +88,7 @@ class Profiler(Generic[_Categorie]):
                 nbPoped += 1
         return nbPoped
 
-    def allMesure(self, categorie:"_Categorie")->list[float]:
+    def allMesure(self, categorie:"_Categorie")->"list[float]":
         if self.hasMesure(categorie) is True:
             return list(reversed(self._mesures[categorie])) # reversed => first to last mesure
         raise KeyError(f"no mesures for the categorie: {categorie}")
@@ -127,31 +127,31 @@ class Profiler(Generic[_Categorie]):
     
     def str_allTimes(self,
             formatTimes:"Callable[[float], str]|None"=None,
-            categories:"list[_Categorie]|None"=None)->dict[_Categorie, list[str]]:
+            categories:"list[_Categorie]|None"=None)->"dict[_Categorie, list[str]]":
         if formatTimes is None: formatTimes = str
         return {categorie: [formatTimes(timeVal) for timeVal in  self.allMesure(categorie)]
                 for categorie in self.__getCategories(categories) if self.hasMesure(categorie)}
     def str_lastTimes(self,
             formatTimes:"Callable[[float], str]|None"=None,
-            categories:"list[_Categorie]|None"=None)->dict[_Categorie, str]:
+            categories:"list[_Categorie]|None"=None)->"dict[_Categorie, str]":
         if formatTimes is None: formatTimes = str
         return {categorie: formatTimes(self.lastMesure(categorie))
                 for categorie in self.__getCategories(categories) if self.hasMesure(categorie)}
     def str_avgTimes(self,
             formatTimes:"Callable[[float], str]|None"=None,
-            categories:"list[_Categorie]|None"=None)->dict[_Categorie, str]:
+            categories:"list[_Categorie]|None"=None)->"dict[_Categorie, str]":
         if formatTimes is None: formatTimes = str
         return {categorie: formatTimes(self.avgMesure(categorie))
                 for categorie in self.__getCategories(categories) if self.hasMesure(categorie)}
     def str_emaTimes(self,
             formatTimes:"Callable[[float], str]|None"=None,
-            categories:"list[_Categorie]|None"=None)->dict[_Categorie, str]:
+            categories:"list[_Categorie]|None"=None)->"dict[_Categorie, str]":
         if formatTimes is None: formatTimes = str
         return {categorie: formatTimes(self.emaMesure(categorie))
                 for categorie in self.__getCategories(categories) if self.hasMesure(categorie)}
     def str_totalTimes(self,
             formatTimes:"Callable[[float], str]|None"=None,
-            categories:"list[_Categorie]|None"=None)->dict[_Categorie, str]:
+            categories:"list[_Categorie]|None"=None)->"dict[_Categorie, str]":
         if formatTimes is None: formatTimes = str
         return {categorie: formatTimes(self.totalMesure(categorie))
                 for categorie in self.__getCategories(categories) if self.hasMesure(categorie)}
@@ -253,7 +253,7 @@ class DummyProfiler:
     def wrapper(self, *_, **__)->Callable[[Callable[_P, _T]], Callable[_P, _T]]: return self.wrap
     def clean(self)->None: ...
     def addManualMesure(self, *_, **__)->None: ...
-    def allMesure(self, *_, **__)->list[float]: return []
+    def allMesure(self, *_, **__)->"list[float]": return []
     def lastMesure(self, *_, **__)->float: return -1.0
     def avgMesure(self, *_, **__)->float: return -1.0
     def emaMesure(self, *_, **__)->float: return -1.0
@@ -263,11 +263,11 @@ class DummyProfiler:
     def avgTimes(self, *_, **__)->"dict[Any, float]": return {}
     def emaTimes(self, *_, **__)->"dict[Any, float]": return {}
     def totalTimes(self, *_, **__)->"dict[Any, float]": return {}
-    def str_allTimes(self, *_, **__)->dict[Any, list[str]]: return {}
-    def str_lastTimes(self, *_, **__)->dict[Any, str]: return {}
-    def str_avgTimes(self, *_, **__)->dict[Any, str]: return {}
-    def str_emaTimes(self, *_, **__)->dict[Any, str]: return {}
-    def str_totalTimes(self, *_, **__)->dict[Any, str]: return {}
+    def str_allTimes(self, *_, **__)->"dict[Any, list[str]]": return {}
+    def str_lastTimes(self, *_, **__)->"dict[Any, str]": return {}
+    def str_avgTimes(self, *_, **__)->"dict[Any, str]": return {}
+    def str_emaTimes(self, *_, **__)->"dict[Any, str]": return {}
+    def str_totalTimes(self, *_, **__)->"dict[Any, str]": return {}
     def hasMesure(self, *_, **__)->bool: return False
     def hasEmaMesure(self, *_, **__)->bool: return False
     def mesure(self, *_, **__)->"DummyProfiler": return self
