@@ -1,5 +1,5 @@
 import os
-from holo.__typing import Literal
+from holo.__typing import Literal, NamedTuple, Generator, DefaultDict
 from pathlib import Path
 from io import StringIO as _StringIO
 import random as _random
@@ -43,6 +43,47 @@ def getSize(path:str, endswith:"str|None"=None, maxDepth:int=-1, checkPermission
             if checkPermission is False:
                 raise error
             return 0
+
+def getFilesInfos(directory:"str|Path", maxDepth:int=-1, checkPermission:bool=True)->"Generator[os.DirEntry, None, None]":
+    if maxDepth == 0: return # (maxDepth < 0) => never stop
+    if isinstance(directory, str): directory = Path(directory)
+    try: allElements = os.scandir(directory)
+    except:
+        if checkPermission is True: return
+        raise # when checkPermission is False => fail on bad permission
+
+    for element in allElements:
+        elementPath:Path = directory.joinpath(element.name)
+        if element.is_symlink(): continue # not supported
+        elif element.is_file():
+            yield element
+        elif element.is_dir():
+            yield from getFilesInfos(elementPath, maxDepth=maxDepth-1)
+        else: continue # not supported
+
+
+class ExtentionInfos(NamedTuple):
+    extension: str
+    nbFiles: int
+    totalSize: int
+    sizeProportion: float
+
+def getSizeInfos(directory:"str|Path", maxDepth:int=-1, checkPermission:bool=True)->"list[ExtentionInfos]":
+    nbFiles:"dict[str, int]" = DefaultDict(lambda : 0)
+    totalSize:"dict[str, int]" = DefaultDict(lambda : 0)
+    for file in getFilesInfos(directory, maxDepth=maxDepth, checkPermission=checkPermission):
+        extention:str =  "".join(Path(file.name).suffixes)
+        nbFiles[extention] += 1
+        totalSize[extention] += file.stat().st_size
+    
+    cummulatedTotalSize:int = sum(totalSize.values())
+    return [
+        ExtentionInfos(extention, nbFiles_, totalSize_, totalSize_/cummulatedTotalSize)
+        for extention, nbFiles_, totalSize_ in zip(nbFiles.keys(), nbFiles.values(), totalSize.values())
+    ]
+
+
+
 
 def correctDirPath(dirPath:str)->str:
     """take a path to the directory `dirPath` and aplies the folowing correction:
