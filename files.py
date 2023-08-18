@@ -1,5 +1,5 @@
 import os
-from holo.__typing import Literal, NamedTuple, Generator, DefaultDict
+from holo.__typing import Literal, NamedTuple, Generator, DefaultDict, Iterable
 from pathlib import Path
 from io import StringIO as _StringIO
 import random as _random
@@ -44,13 +44,16 @@ def getSize(path:str, endswith:"str|None"=None, maxDepth:int=-1, checkPermission
                 raise error
             return 0
 
-def getFilesInfos(directory:"str|Path", maxDepth:int=-1, checkPermission:bool=True)->"Generator[os.DirEntry, None, None]":
+def getFilesInfos(directory:"str|Path", maxDepth:int=-1, checkPermission:bool=True, ordered:bool=False)->"Generator[os.DirEntry, None, None]":
     if maxDepth == 0: return # (maxDepth < 0) => never stop
     if isinstance(directory, str): directory = Path(directory)
-    try: allElements = os.scandir(directory)
+    try: allElements:"Iterable[os.DirEntry]" = os.scandir(directory)
     except:
         if checkPermission is True: return
         raise # when checkPermission is False => fail on bad permission
+
+    if ordered is True:
+        allElements = sorted(allElements, key=lambda elt: elt.name)
 
     for element in allElements:
         elementPath:Path = directory.joinpath(element.name)
