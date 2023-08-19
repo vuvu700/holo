@@ -1,4 +1,4 @@
-from typing import ContextManager, Callable, TypeVar, ParamSpec
+from holo.__typing import ContextManager, Callable, TypeVar, ParamSpec
 
 _T = TypeVar("_T")
 _P = ParamSpec("_P")
