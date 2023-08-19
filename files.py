@@ -1,4 +1,5 @@
 import os
+import shutil
 from holo.__typing import Literal, NamedTuple, Generator, DefaultDict, Iterable
 from pathlib import Path
 from io import StringIO as _StringIO
@@ -281,4 +282,19 @@ def get_unique_name(
     return (_prefix_str + name + _suffix_str)
 
 
+def copyTree(src:"Path|str", dst:"str|Path", dirs_exist_ok:bool=True)->None:
+    # code very inspired from shutil.copytree
+    names = os.listdir(src)
 
+    os.makedirs(dst, exist_ok=dirs_exist_ok)
+    for name in names:
+        srcname = os.path.join(src, name)
+        dstname = os.path.join(dst, name)
+        if os.path.islink(srcname):
+            raise OSError(f"the copy of symlink is not supported")
+        elif os.path.isdir(srcname):
+            copyTree(srcname, dstname, dirs_exist_ok=dirs_exist_ok)
+        else: # => srcname is a file
+            shutil.copy2(srcname, dstname)
+    
+    shutil.copystat(src, dst)

@@ -1,9 +1,11 @@
 from mypy import stubgen
 from pathlib import Path
-from typing import NamedTuple
 import shutil, os
 
-class Export(NamedTuple):
+from holo.files import copyTree
+from holo.__typing import NamedTuple, Union
+
+class ModuleExport(NamedTuple):
     moduleName: str
     moduleDir: Path
     exportDirs: "list[Path]"
@@ -22,24 +24,56 @@ class Export(NamedTuple):
         return [destinationDir.joinpath(self.interfaceFileName) for destinationDir in self.exportDirs]
 
 
-def main(exportsList:"list[Export]", workingDir:Path, removeCache:bool=True, removeTemporaryInterfaces:bool=True):
+class PackageExport(NamedTuple):
+    packageName: str
+    moduleDir: Path
+    exportDirs: "list[Path]"
+
+    @property
+    def packageFullPath(self)->Path:
+        return self.moduleDir.joinpath(self.packageName)
+    
+    def get_interfacesExports(self)->"list[Path]":
+        return [destinationDir.joinpath(self.packageName) for destinationDir in self.exportDirs]
+
+
+Exports = Union[ModuleExport, PackageExport]
+
+
+def main(exportsList:"list[Exports]", workingDir:Path, removeCache:bool=True, removeTemporaryInterfaces:bool=True):
     TEMPORARY_PYI_DIR = workingDir.joinpath("tmp-pyi-dir") # use - to avoid being a package
     
     ### generate all the pyi in the temporary dir
-    allModulesToConvert:list[str] = [export.moduleFullPath.as_posix() for export in exportsList]
+    allModulesToConvert:list[str] = [
+        (export.moduleFullPath if isinstance(export, ModuleExport) \
+            else export.packageFullPath).as_posix()
+        for export in exportsList
+    ]
     stubgen.main(["-o", TEMPORARY_PYI_DIR.as_posix(), "--include-private", "--ignore-errors", *allModulesToConvert])
     # has exited if there is was probleme 
 
     # copy them at the correct path
     for export in exportsList:
-        interfacePath = TEMPORARY_PYI_DIR.joinpath(export.interfaceFileName)
-        for destination in export.get_interfacesExports():
-            shutil.copyfile(interfacePath, destination)
-        if removeTemporaryInterfaces is True:
+        interfacePath:Path; destination:Path
+        
+        if isinstance(export, ModuleExport):
+            interfacePath = TEMPORARY_PYI_DIR.joinpath(export.interfaceFileName)
+            for destination in export.get_interfacesExports():
+                shutil.copyfile(interfacePath, destination)
             os.remove(interfacePath)
+            
+        elif isinstance(export, PackageExport):
+            interfacePath = TEMPORARY_PYI_DIR.joinpath(export.packageName)
+            for destination in export.get_interfacesExports():
+                copyTree(interfacePath, destination)
+            shutil.rmtree(interfacePath)
+            
+        else: raise TypeError(f"unsupported export type: {type(export)}")
+    
+    # remove the temp dir (if empty)
     if removeTemporaryInterfaces is True:
         try: os.rmdir(TEMPORARY_PYI_DIR)
-        except OSError: pass # the dir wasn't empty (some external files remaining)
+        except OSError: pass # => the dir wasn't empty (some external files remaining)
 
     # remove the mypy cache
     if removeCache is True:
