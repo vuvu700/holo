@@ -1,13 +1,14 @@
+__author__ = "Andrieu Ludovic"
+
 import sys
 from collections.abc import Iterable
+import traceback
+
+
 from holo.__typing import (
     TypeVar, Any, Sequence, TextIO, Literal, 
     Generic, Unpack, TypeVarTuple, ContextManager, Self,
 )
-import traceback
-
-__author__ = "Andrieu Ludovic"
-
 from holo.dummys import DummyContext
 from holo.prettyFormats import prettyPrint, prettyTime
 
@@ -15,7 +16,6 @@ from holo.prettyFormats import prettyPrint, prettyTime
 _T = TypeVar("_T")
 
 # TODO: add un param a prettyPrint qui permet de ne pas forcer le compact récursivement mais redeterminer a chaque étape
-
 
 class Node_Words():
     """ABR specialized O(log2 n) to search Iterable in large amount of other Iterable :\n

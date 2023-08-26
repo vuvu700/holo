@@ -11,10 +11,10 @@ if sys.version_info < (3, 11):
     from typing_extensions import (
         Literal, Self, TypeVarTuple,
         Unpack, TypeGuard, LiteralString,
-        ParamSpec,
+        ParamSpec, TypeAlias
     )
 else: from typing import (
         Literal, Self, TypeVarTuple,
         Unpack, TypeGuard, LiteralString,
-        ParamSpec
+        ParamSpec, TypeAlias
     )

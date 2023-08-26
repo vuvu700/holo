@@ -1,11 +1,17 @@
 import os
 import shutil
-from holo.__typing import Literal, NamedTuple, Generator, DefaultDict, Iterable
 from pathlib import Path
 from io import StringIO as _StringIO
 import random as _random
 
-def combinePaths(*args:"str|Path")->str:
+from holo.__typing import (
+    Literal, NamedTuple, Generator, 
+    DefaultDict, Iterable, TypeAlias, Union,
+)
+                           
+StrPath: TypeAlias = Union[str, os.PathLike[str]]
+
+def combinePaths(*args:"StrPath")->str:
     if len(args) == 0:
         raise IndexError("args is empty, no paths to combine")
     path:"Path" = Path(args[0])
@@ -164,27 +170,27 @@ def getParentDir(path:str)->str:
 
 
 
-def mkDirRec(directory:"str|Path")->None:
+def mkDirRec(directory:"StrPath")->None:
     """create (if necessary) the full directory's path asked"""
     Path(directory).mkdir(parents=True, exist_ok=True)
 
 
-def get_subdirectorys(directory:"str|Path")->"list[str]":
+def get_subdirectorys(directory:"StrPath")->"list[str]":
     """return teh name of all the directorys insibe the targeted directory"""
     return [dirname for dirname in os.listdir(directory) if os.path.isdir(combinePaths(directory, dirname))]
 
-def get_subfiles(directory:"str|Path")->"list[str]":
+def get_subfiles(directory:"StrPath")->"list[str]":
     """return teh name of all the directorys insibe the targeted directory"""
     return [filename for filename in os.listdir(directory) if os.path.isfile(combinePaths(directory, filename))]
 
-def get_subfilesAndDirs(directory:"str|Path")->"list[str]":
+def get_subfilesAndDirs(directory:"StrPath")->"list[str]":
     """return teh name of all the directorys insibe the targeted directory"""
     test = lambda path: (os.path.isfile(path) is True) or (os.path.isdir(path) is True)
     return [filename for filename in os.listdir(directory) if test(combinePaths(directory, filename))]
 
 
 def get_unique_name(
-        directory:"str|Path|None", onlyNumbers:bool=False,
+        directory:"StrPath|None", onlyNumbers:bool=False,
         nbCharacters:"int|None"=16, randomChoice:bool=True,
         guidlike:bool=True, allowResize:bool=True,
         prefix:"str|None"=None, suffix:"str|None"=None,
@@ -282,7 +288,7 @@ def get_unique_name(
     return (_prefix_str + name + _suffix_str)
 
 
-def copyTree(src:"Path|str", dst:"str|Path", dirs_exist_ok:bool=True)->None:
+def copyTree(src:"StrPath", dst:"StrPath", dirs_exist_ok:bool=True)->None:
     # code very inspired from shutil.copytree
     names = os.listdir(src)
 

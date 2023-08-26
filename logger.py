@@ -2,8 +2,10 @@ import sys
 import time
 from pathlib import Path
 from datetime import datetime
+from io import TextIOWrapper
 
 from holo.__typing import Union, TextIO, Literal
+from holo.files import StrPath
 
 FULL_TIME_FORMAT = "%d/%m/%Y %H:%M:%S"
 HOUR_TIME_FORMAT = "%H:%M:%S"
@@ -60,9 +62,12 @@ class _LoggerWriter(TextIO):
         if (self.copyFile is not None) and (self.copyFile.closed is False):
             self.copyFile.close()
 
+
+
+
 class Logger():
     def __init__(self,
-            filePath:"str|Path", encoding:"str|None"=None,
+            filePath:"StrPath", encoding:"str|None"=None,
             _noRePrint:"bool"=False)->None:
         aux = lambda var, cond: None if cond else var
         self.file:"TextIO|None" = None # to avoid more errors in __del__
@@ -95,3 +100,39 @@ class Logger():
             self.revert("all")
             if self.file.closed is False:
                 self.file.close()
+
+_Encoding = str
+class LoggerContext():
+    def __init__(self, file:"StrPath|tuple[StrPath, _Encoding]|TextIOWrapper")->None:
+        self.file:TextIO
+        if isinstance(file, TextIOWrapper):
+            self.file = file
+        else:
+            encoding:"str|None" = None
+            if isinstance(file, tuple):
+                (file, encoding) = file
+            self.file = open(file, mode='a', encoding=encoding)
+        self.logStdout:"_LoggerWriter|None" = None
+        self.logStderr:"_LoggerWriter|None" = None
+        
+    def __enter__(self)->None:
+        if (self.logStdout is not None) or (self.logStderr is not None):
+            raise RuntimeError("the self.logStdout or self.logStderr is still opened")
+        self.file.seek(0, 2) # got to the end of the log file
+        self.logStdout = _LoggerWriter(self.file, sys.stdout , "INFO")
+        self.logStderr = _LoggerWriter(self.file, sys.stderr, "ERROR")
+        sys.stderr = self.logStderr
+        sys.stdout = self.logStdout
+    
+    def __extit__(self, *_, **__)->None:
+        if (self.logStdout is None) or (self.logStderr is None):
+            raise RuntimeError("the self.logStdout or self.logStderr is not opened")
+        sys.stderr = self.logStderr.copyFile
+        sys.stdout = self.logStdout.copyFile
+        self.logStdout = None
+        self.logStderr = None
+        
+    def __del__(self):
+        if self.file.closed is False:
+            self.file.close()
+ 
