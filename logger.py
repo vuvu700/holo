@@ -12,6 +12,14 @@ HOUR_TIME_FORMAT = "%H:%M:%S"
 
 _WritersNames = Literal['stderr', 'stdout']
 
+def isSameDate(date1:datetime, date2:datetime)->bool:
+    """return True if the two date are the same day"""
+    return (date1.day == date2.day) \
+        and (date1.month == date2.month) \
+        and (date1.year == date2.year)
+
+floatToDtime = datetime.fromtimestamp
+
 class _LoggerWriter(TextIO):
     intervaleInfoText:float = 0.001
     
@@ -35,8 +43,8 @@ class _LoggerWriter(TextIO):
         
         if (self.timeSinceLastWrite >= self.intervaleInfoText) or (self.timeSinceLastInfos > 1.0):
             # select the format for the 
-            timeFormat:str 
-            if datetime.fromtimestamp(self.__timeLastInfos).day != datetime.today().day:
+            timeFormat:str
+            if isSameDate(floatToDtime(self.__timeLastInfos), floatToDtime(currentTime)) is False:
                 timeFormat = FULL_TIME_FORMAT
             else: timeFormat =  HOUR_TIME_FORMAT
             
@@ -57,12 +65,6 @@ class _LoggerWriter(TextIO):
         self.logFile.flush()
         if self.copyFile is not None:
             self.copyFile.flush()
-
-    def __del__(self)->None:
-        if (self.copyFile is not None) and (self.copyFile.closed is False):
-            self.copyFile.close()
-
-
 
 
 class Logger():
@@ -120,19 +122,18 @@ class LoggerContext():
             raise RuntimeError("the self.logStdout or self.logStderr is still opened")
         self.file.seek(0, 2) # got to the end of the log file
         self.logStdout = _LoggerWriter(self.file, sys.stdout , "INFO")
+        sys.stdout = self.logStdout
         self.logStderr = _LoggerWriter(self.file, sys.stderr, "ERROR")
         sys.stderr = self.logStderr
-        sys.stdout = self.logStdout
     
-    def __extit__(self, *_, **__)->None:
+    def __exit__(self, *_, **__)->None:
         if (self.logStdout is None) or (self.logStderr is None):
             raise RuntimeError("the self.logStdout or self.logStderr is not opened")
-        sys.stderr = self.logStderr.copyFile
         sys.stdout = self.logStdout.copyFile
         self.logStdout = None
+        sys.stderr = self.logStderr.copyFile
         self.logStderr = None
         
     def __del__(self):
         if self.file.closed is False:
             self.file.close()
- 

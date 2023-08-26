@@ -9,7 +9,7 @@ from holo.__typing import (
     DefaultDict, Iterable, TypeAlias, Union,
 )
                            
-StrPath: TypeAlias = Union[str, os.PathLike[str]]
+StrPath: TypeAlias = Union[str, Path]
 
 def combinePaths(*args:"StrPath")->str:
     if len(args) == 0:
