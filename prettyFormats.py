@@ -3,9 +3,10 @@ from holo.__typing import (
     Any, TextIO, NamedTuple,
     Callable, Mapping, TypeVar,
     Sized, Generator, cast, Literal,
-    TypeGuard,
+    TypeGuard, Sequence,
 )
 import sys
+from io import StringIO, IOBase
 
 from holo.calc import divmod_rec
 
@@ -15,155 +16,212 @@ _T = TypeVar("_T")
 def isinstanceNamedTuple(obj:object)->TypeGuard[NamedTuple]:
     return (isinstance(obj, tuple) and hasattr(obj, '_asdict') and hasattr(obj, '_fields'))
 
+class _PrettyPrint_fixedArgs(NamedTuple):
+    stream:TextIO
+    compactArgs:"PrettyPrint_CompactArgs"
+    toStringFunc:"Callable[[object], str]"
+    indentSequence:str
+
+    def getIndent(self, nbIndents:int)->str:
+        return self.indentSequence * nbIndents
+
+class _PP_Delimiter(NamedTuple):
+    open:str
+    close:str
+
+_PP_specialDelimChars:"dict[type, _PP_Delimiter]" = {
+    dict:_PP_Delimiter('{', '}'),  list:_PP_Delimiter('[', ']'),
+    set:_PP_Delimiter('{', '}'), tuple:_PP_Delimiter('(', ')'),
+}
+DEFAULT_MAPPING_DELIM = _PP_Delimiter("{", "}")
+DEFAULT_ITERABLE_DELIM = _PP_Delimiter("[", "]")
+
+class PrettyPrint_CompactArgs():
+    __slots__ = ("compactSmaller", "compactLarger", "compactSpecifics", "keepReccursiveCompact")
+    def __init__(self,
+            compactSmaller:"int|Literal[False]"=False, compactLarger:"int|Literal[False]"=False,
+            keepReccursiveCompact:bool=False, compactSpecifics:"set[type]|None"=None) -> None:
+        self.compactSmaller:"int|Literal[False]" = compactSmaller
+        self.compactLarger:"int|Literal[False]" = compactLarger
+        self.compactSpecifics:"set[type]|None" = compactSpecifics
+        self.keepReccursiveCompact:bool = keepReccursiveCompact
+    
+    def newCompactPrint(self, obj:Any, currentCompactState:"_PP_compactState")->bool:
+        if currentCompactState._force is not None: 
+            return currentCompactState._force # forced
+        if (currentCompactState.compactPrint is True) and (self.keepReccursiveCompact is True):
+            return True # keep compacting
+        # => we will over write the compactPrint
+        ### compact based on size
+        if isinstance(obj, Sized):
+            objSize:int = len(obj)
+            if (self.compactSmaller is not False) and (objSize <= self.compactSmaller):
+                return True
+            if (self.compactLarger is not False) and (objSize >= self.compactSmaller):
+                return True
+        ### compact based on specific type
+        if self.compactSpecifics is None: 
+            return False # no specific rule
+        if type(obj) in self.compactSpecifics:
+            return True # => exact type match
+        # test if is instance of any specific rule
+        return type(obj) in self.compactSpecifics
+        
+class _PP_compactState():
+    __slots__ = ("compactPrint", "_force")
+    def __init__(self, compactPrint:bool, _force:"bool|None"=None) -> None:
+        self.compactPrint:bool = compactPrint
+        self._force:"bool|None" = _force
+    
+    
+    def newFromCompactPrint(self, newCompactPrint:bool)->"_PP_compactState":
+        return _PP_compactState(compactPrint=newCompactPrint, _force=self._force)
+    def force(self, forceState:"bool|None")->"_PP_compactState":
+        return _PP_compactState(compactPrint=self.compactPrint, _force=forceState)
+
+class _PP_compactRules(NamedTuple):
+    newLine:bool; spacing:bool; indent:bool       
+
 def __prettyPrint_internal(
-        obj:object, indentSpaces:int, stream:"TextIO", compactUnder:"int|None", compactOver:"int|None",
-        currLineIndent:int, specificFormats:"dict[type[_T], Callable[[_T], str]]|None", forceCompact:bool,
-        toStringFunc:"Callable[[object], str]", printClassName:"bool|None", indentSequence:str):
+        obj:Any, currLineIndent:int, specificFormats:"dict[type[_T], Callable[[_T], str|Any]]|None", 
+        oldCompactState:"_PP_compactState", args:"_PrettyPrint_fixedArgs")->None:
     """`compactUnder` if the size (in elts) of the object is under its value, print it more compactly\n
-    `specificFormats` is a dict: type -> (func -> obj -> str), if an obj's correspond use this to print\n
+    `specificFormats` is a dict: type -> (func -> obj -> str), if an obj is an instance use this to print\n
     `printClassName` whether it will print the class before printing the object (True->alway, None->default, False->never)\n"""
-    specialDelimChars:"dict[type, tuple[str, str]]" = {
-        dict:('{', '}'),  list:('[', ']'), set:('{', '}'), tuple:('(', ')'),
-        int:('(', ')'), float:('(', ')'), str:('(', ')'), complex:('(', ')'),
-    }
-    typesSpecialDelim:"tuple[type, ...]" = tuple(specialDelimChars.keys())
+
 
     ## look for a specific format first
     if (specificFormats is not None):
-        for (type_, formatFunc) in specificFormats.items():
-            if isinstance(obj, type_):
-                if printClassName is True:
-                    tmp:bool = False
-                    stream.write(obj.__class__.__name__)
-                    if type(obj) in typesSpecialDelim:
-                        stream.write(specialDelimChars[type(obj)][0]); tmp=True
-                    else: stream.write("#")
-                    stream.write(toStringFunc(obj))
-                    if tmp is True:
-                        stream.write(specialDelimChars[type(obj)][1])
-                    else: stream.write("#")
-                else: stream.write(formatFunc(obj))
-
-                return None
+        formatFunc = specificFormats.get(type(obj), None)
+        if formatFunc is not None:
+            # obj will use a specific format
+            newObj:"str|Any" = formatFunc(obj)
+            if isinstance(newObj, str):
+                args.stream.write(newObj)
+            else:
+                __prettyPrint_internal(
+                    obj=newObj, currLineIndent=currLineIndent,
+                    oldCompactState=oldCompactState,
+                    specificFormats=specificFormats, args=args, 
+                )
+            return None
 
     ## then use the general rule
     isFirstElt:bool
-    compactPrint:bool = forceCompact
     newLineSequence:str
-    if (compactPrint is False) and isinstance(obj, Sized):
-        objSize:int = len(obj)
-        compactPrint = ((compactUnder is not None) and (objSize <= compactUnder))
-        compactPrint = (compactPrint is True) or ((compactOver is not None) and (objSize >= compactOver))
-    reccursiveForceCompact:bool = forceCompact
+    currenCompactState:"_PP_compactState" = oldCompactState.newFromCompactPrint(
+        args.compactArgs.newCompactPrint(obj, oldCompactState)
+    )
+    compactPrint:bool = currenCompactState.compactPrint
 
     if isinstance(obj, Mapping) or isinstanceNamedTuple(obj): # /!\ Mapping and NamedTuple can be iterable
-        if printClassName is True: stream.write(obj.__class__.__name__)
-        if type(obj) in typesSpecialDelim:
-            stream.write(specialDelimChars[type(obj)][0])
-        else:
-            if printClassName is None:
-                stream.write(obj.__class__.__name__)
-            stream.write("{")
+        delimiter = _PP_specialDelimChars.get(type(obj), DEFAULT_MAPPING_DELIM)
+        args.stream.write(delimiter.open)
 
         if compactPrint is False:
-            stream.write("\n" + indentSequence*(currLineIndent+indentSpaces))
+            args.stream.write("\n" + args.getIndent(currLineIndent+1))
 
         isFirstElt = True
-        newLineSequence = ", " if (compactPrint is True) else (",\n" + indentSequence*(currLineIndent+indentSpaces))
+        newLineSequence = ("," if (compactPrint is True) else (",\n" + args.getIndent(currLineIndent+1)))
         objItems:"Iterable[tuple[Any, Any]]" = (obj.items() if isinstance(obj, Mapping) else obj._asdict().items())
         for key, value in objItems:
             if isFirstElt is True: isFirstElt = False
-            else: stream.write(newLineSequence)
+            else: # => not the first element
+                args.stream.write(newLineSequence)
             __prettyPrint_internal(
-                key, indentSpaces, stream, compactUnder, compactOver, currLineIndent+indentSpaces, specificFormats,
-                toStringFunc=toStringFunc, forceCompact=True, printClassName=printClassName, indentSequence=indentSequence,
+                obj=key, currLineIndent=currLineIndent+1, specificFormats=specificFormats,
+                oldCompactState=currenCompactState.force(True), args=args,
                 # forceCompact=True seem better for a key
             )
-            stream.write(": ")
+            args.stream.write((": " if compactPrint is False else ":"))
             __prettyPrint_internal(
-                value, indentSpaces, stream, compactUnder, compactOver, currLineIndent+indentSpaces, specificFormats,
-                forceCompact=reccursiveForceCompact, toStringFunc=toStringFunc, printClassName=printClassName, indentSequence=indentSequence,
+                obj=value, currLineIndent=currLineIndent+1, specificFormats=specificFormats,
+                oldCompactState=currenCompactState, args=args,
             )
 
         if (compactPrint is False):
-            stream.write("\n" + indentSequence*currLineIndent)
-        if type(obj) in typesSpecialDelim:
-            stream.write(specialDelimChars[type(obj)][1])
-        else : stream.write("}")
+            args.stream.write("\n" + args.getIndent(currLineIndent))
+
+        args.stream.write(delimiter.close)
         return None
 
-    elif isinstance(obj, Iterable) and (not isinstance(obj, (Generator, str, bytes))):
-        if printClassName is True: stream.write(obj.__class__.__name__)
-        if type(obj) in typesSpecialDelim:
-            stream.write(specialDelimChars[type(obj)][0])
-        else:
-            if printClassName is None:
-                stream.write(obj.__class__.__name__)
-            stream.write("[")
+    elif (isinstance(obj, Sequence) \
+            or (isinstance(obj, Iterable) and isinstance(obj, Sized))) \
+            and not (isinstance(obj, (str, bytes))):
+        delimiter = _PP_specialDelimChars.get(type(obj), DEFAULT_ITERABLE_DELIM)
+        args.stream.write(delimiter.open)
 
         if (compactPrint is False):
-            stream.write("\n" + indentSequence*(currLineIndent+indentSpaces))
+            args.stream.write("\n" + args.getIndent(currLineIndent+1))
 
         isFirstElt = True
-        newLineSequence = ", " if (compactPrint is True) else (",\n" + indentSequence*(currLineIndent+indentSpaces))
+        newLineSequence = ("," if (compactPrint is True) else (",\n" + args.getIndent(currLineIndent+1)))
         for item in obj:
             if isFirstElt is True: isFirstElt = False
-            else: stream.write(newLineSequence)
+            else: # => not the first element
+                args.stream.write(newLineSequence)
             __prettyPrint_internal(
-                item, indentSpaces, stream, compactUnder, compactOver, currLineIndent+indentSpaces, specificFormats,
-                forceCompact=reccursiveForceCompact, toStringFunc=toStringFunc, printClassName=printClassName, indentSequence=indentSequence,
-
+                obj=item, currLineIndent=currLineIndent+1, specificFormats=specificFormats,
+                oldCompactState=currenCompactState, args=args,
             )
 
         if (compactPrint is False):
-            stream.write("\n" + indentSequence*currLineIndent)
-        if type(obj) in typesSpecialDelim:
-            stream.write(specialDelimChars[type(obj)][1])
-        else : stream.write("]")
+            args.stream.write("\n" + args.getIndent(currLineIndent))
+        
+        args.stream.write(delimiter.close)
         return None
 
-    else:
-        # print normaly
-        if printClassName is True:
-            tmp:bool = False
-            stream.write(obj.__class__.__name__)
-            if type(obj) in typesSpecialDelim:
-                stream.write(specialDelimChars[type(obj)][0]); tmp=True
-            else: stream.write("|")
-            stream.write(toStringFunc(obj))
-            if tmp is True:
-                stream.write(specialDelimChars[type(obj)][1])
-            else: stream.write("|")
-
-        else : stream.write(toStringFunc(obj))
-        return None
+    else: # => print normaly
+        args.stream.write(args.toStringFunc(obj))
 
 def prettyPrint(
-        obj:object, indents:int=4, indentSequence:str=" ", compact:"tuple[int|None, int|None]|bool|None"=False,
-        stream:"TextIO|None"=None, specificFormats:"dict[type[_T], Callable[[_T], str]]|None"=None, end:"str|None"="\n",
-        _defaultStrFunc:"Callable[[object], str]"=str, printClassName:"bool|None"=False)->None:
+        obj:object, indentSequence:str=" "*4, compact:"bool|None|PrettyPrint_CompactArgs"=False,
+        stream:"TextIO|None"=None, specificFormats:"dict[type[_T], Callable[[_T], str|Any]]|None"=None, end:"str|None"="\n",
+        _defaultStrFunc:"Callable[[object], str]"=str, startIndent:int=0)->None:
     """/!\\ may not be as optimized as pprint but prettier print\n
     default `stream` -> stdout\n
-    `compact` is either a tuple of (compactUnder, compactOver) or bool (True -> (1, 35))\n
+    `compact` ...\n
     \t with compactUNDER if the size (in elts) of the object is <= its value (if not None)\n
-    \t => print it more compactly (similar thing for compactOVER)\n
-    `indents` the number of time the `indentSequence` is repeated very indentation"""
+    \t => print it more compactly (similar thing for compactOVER)"""
     if stream is None: stream = sys.stdout
 
-    compactUnder:"int|None"; compactOver:"int|None"
-    if compact is None: compactUnder = 1; compactOver = 35
-    elif compact is False: compactUnder = 0; compactOver = None
-    elif compact is True: compactUnder = -1; compactOver = -1
-    else: compactUnder = compact[0]; compactOver = compact[1]
+    compactArgs:"PrettyPrint_CompactArgs"
+    startCompactState:"_PP_compactState"
+    if compact is None: # => use a default config
+        compactArgs = PrettyPrint_CompactArgs(1, 20)
+        startCompactState = _PP_compactState(False, _force=None)
+    elif compact is True: # => always force compact 
+        compactArgs = PrettyPrint_CompactArgs() # don't care
+        startCompactState = _PP_compactState(True, _force=True) 
+    elif compact is False: # => never compact 
+        compactArgs = PrettyPrint_CompactArgs() # don't care
+        startCompactState = _PP_compactState(False, _force=False) 
+    elif isinstance(compact, PrettyPrint_CompactArgs):
+        compactArgs = compact
+        startCompactState = _PP_compactState(False, _force=None)
+    else: raise TypeError(f"invalide type of the compact parameter: {type(compact)}")
 
     __prettyPrint_internal(
-        obj, indentSpaces=indents, stream=stream, compactUnder=compactUnder, compactOver=compactOver,
-        specificFormats=specificFormats, currLineIndent=0, forceCompact=(compact is True),
-        toStringFunc=_defaultStrFunc, printClassName=printClassName, indentSequence=indentSequence,
+        obj, currLineIndent=startIndent, specificFormats=specificFormats,
+        oldCompactState=startCompactState,
+        args=_PrettyPrint_fixedArgs(
+            stream=stream, indentSequence=indentSequence, 
+            toStringFunc=_defaultStrFunc, compactArgs=compactArgs,
+        )
     )
     if end is not None:
         stream.write(end)
 
+def prettyString(obj:object, indentSequence:str=" "*4, compact:"bool|None|PrettyPrint_CompactArgs"=False,
+        specificFormats:"dict[type[_T], Callable[[_T], str|Any]]|None"=None,
+        _defaultStrFunc:"Callable[[object], str]"=str, startIndent:int=0)->str:
+    stream = StringIO()
+    prettyPrint(
+        obj=obj, indentSequence=indentSequence, compact=compact,
+        stream=stream, specificFormats=specificFormats, end=None,
+        _defaultStrFunc=_defaultStrFunc, startIndent=startIndent,
+    )
+    return stream.getvalue()
 
 
 def prettyTime(t:float)->str:
