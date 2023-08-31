@@ -5,9 +5,10 @@ from io import StringIO as _StringIO
 import random as _random
 
 from holo.__typing import (
-    Literal, NamedTuple, Generator, 
+    Literal, NamedTuple, Generator, Callable,
     DefaultDict, Iterable, TypeAlias, Union,
 )
+from holo.protocols import SupportsRichComparison
                            
 StrPath: TypeAlias = Union[str, Path]
 
@@ -16,11 +17,11 @@ def combinePaths(*args:"StrPath")->str:
         raise IndexError("args is empty, no paths to combine")
     path:"Path" = Path(args[0])
     for index in range(1, len(args)):
-        path = Path(path).joinpath(args[index])
+        path = path.joinpath(args[index])
     return path.as_posix()
 
 
-### faire une fontion pour les paternes comme linux
+
 
 def getSize(path:str, endswith:"str|None"=None, maxDepth:int=-1, checkPermission:bool=True)->int:
     """return the size in octes of the tageted `path`\n
@@ -51,24 +52,44 @@ def getSize(path:str, endswith:"str|None"=None, maxDepth:int=-1, checkPermission
                 raise error
             return 0
 
-def getFilesInfos(directory:"str|Path", maxDepth:int=-1, checkPermission:bool=True, ordered:bool=False)->"Generator[os.DirEntry, None, None]":
-    if maxDepth == 0: return # (maxDepth < 0) => never stop
-    if isinstance(directory, str): directory = Path(directory)
+def getFilesInfos(
+        directory:Path, maxDepth:"int|None"=None, checkPermission:bool=True, 
+        ordered:"bool|Callable[[os.DirEntry], SupportsRichComparison]"=False)->"Generator[os.DirEntry, None, None]":
+    """create a generator that reccursively yield the infos about the files\n
+    `directory` : Path, where to search\n
+    `maxDepth` : int|None, the maximum reccursive depth allowed, \
+        positive interger (0 -> current dir) or None (never stop)\n
+    `checkPermission` : bool, wether it will \
+        skip it when acces is not allowed, or raise an error\n
+    `ordered` : bool|Callable[[os.DirEntry], bool], wether it will sort the files \
+        True -> by name, Callable -> custom\n
+    """
+    # determine next maxDepth
+    nextDepth:"int|None"
+    if maxDepth is None: nextDepth = None
+    elif (maxDepth < 0): return # max depth reached
+    else: nextDepth = maxDepth-1
+    
+    # try determine the elements in the targeted directory
     try: allElements:"Iterable[os.DirEntry]" = os.scandir(directory)
     except:
         if checkPermission is True: return
         raise # when checkPermission is False => fail on bad permission
 
-    if ordered is True:
-        allElements = sorted(allElements, key=lambda elt: elt.name)
-
+    # if asked order the elements
+    if ordered is True: # default => sort by name
+        ordered = lambda elt: elt.name
+    if ordered is not False:
+        allElements = sorted(allElements, key=ordered)
+    
+    # yield the files  and  yield form the dirs
     for element in allElements:
         elementPath:Path = directory.joinpath(element.name)
-        if element.is_symlink(): continue # not supported
+        if element.is_symlink(): continue # not a file, not supported
         elif element.is_file():
             yield element
         elif element.is_dir():
-            yield from getFilesInfos(elementPath, maxDepth=maxDepth-1)
+            yield from getFilesInfos(elementPath, maxDepth=nextDepth)
         else: continue # not supported
 
 
@@ -78,10 +99,12 @@ class ExtentionInfos(NamedTuple):
     totalSize: int
     sizeProportion: float
 
-def getSizeInfos(directory:"str|Path", maxDepth:int=-1, checkPermission:bool=True)->"list[ExtentionInfos]":
+def getSizeInfos(directory:Path, maxDepth:int=-1, checkPermission:bool=True)->"list[ExtentionInfos]":
     nbFiles:"dict[str, int]" = DefaultDict(lambda : 0)
     totalSize:"dict[str, int]" = DefaultDict(lambda : 0)
-    for file in getFilesInfos(directory, maxDepth=maxDepth, checkPermission=checkPermission):
+    for file in getFilesInfos(
+            directory, maxDepth=maxDepth, ordered=False,
+            checkPermission=checkPermission):
         extention:str =  "".join(Path(file.name).suffixes)
         nbFiles[extention] += 1
         totalSize[extention] += file.stat().st_size
@@ -89,7 +112,8 @@ def getSizeInfos(directory:"str|Path", maxDepth:int=-1, checkPermission:bool=Tru
     cummulatedTotalSize:int = sum(totalSize.values())
     return [
         ExtentionInfos(extention, nbFiles_, totalSize_, totalSize_/cummulatedTotalSize)
-        for extention, nbFiles_, totalSize_ in zip(nbFiles.keys(), nbFiles.values(), totalSize.values())
+        for extention, nbFiles_, totalSize_
+            in zip(nbFiles.keys(), nbFiles.values(), totalSize.values())
     ]
 
 
