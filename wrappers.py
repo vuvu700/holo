@@ -1,4 +1,6 @@
-from holo.__typing import (TextIO, TypeVar, Callable, ParamSpec, Literal)
+from holo.__typing import (
+    TextIO, TypeVar, Callable, ParamSpec, Literal,
+)
 
 from holo import print_exception
 from holo.dummys import dummyWrapper, dummyWrapperOfWrapper
@@ -8,29 +10,23 @@ _P = ParamSpec("_P")
 _FailType = TypeVar("_FailType")
 failObject = object()
 
-def secureFunc(func:"Callable[_P, _T]", _failObject:"_FailType"=failObject, printErrors:bool=True)->"Callable[_P, _T|_FailType]":
+def secureFunc(func:"Callable[_P, _T]", failObject:"_FailType"=failObject, printErrors:bool=True)->"Callable[_P, _T|_FailType]":
     """avoid errors being raised\n
     if an error happend, print them if `printErrors`, and return `_failObject`"""
     def securedFunc(*args:_P.args, **kwargs:_P.kwargs)->"_T|_FailType":
-        nonlocal func, printErrors, _failObject
+        nonlocal func, printErrors, failObject
         try: return func(*args, **kwargs)
         except Exception as err:
             if printErrors is True: print_exception(err)
-            return _failObject
+            return failObject
     return securedFunc
 
-def secureWrapper(_failObject:"_FailType"=failObject, printErrors:bool=True):#->"Callable[[Callable[_P, _T]], Callable[_P, _T|_FailType]]": # the commented type hinting dont work properly
+def secureWrapper(
+        failObject:"_FailType"=failObject, printErrors:bool=True
+        )->"Callable[[Callable[_P, _T]], Callable[_P, _T|_FailType]]":
     """avoid errors being raised\n
-    if an error happend, print them if `printErrors`, and return `_failObject`"""
-    def internal(func:"Callable[_P, _T]")->"Callable[_P, _T|_FailType]":
-        def securedFunc(*args:_P.args, **kwargs:_P.kwargs)->"_T|_FailType":
-            nonlocal func, printErrors, _failObject
-            try: return func(*args, **kwargs)
-            except Exception as err:
-                if printErrors is True: print_exception(err)
-                return _failObject
-        return securedFunc
-    return internal
+    if an error happend, print them if `printErrors`, and return `failObject`"""
+    return lambda func: secureFunc(func, failObject=failObject, printErrors=printErrors)
 
 
 def printError(file:"TextIO|Literal['stderr', 'stdout']"="stdout")->"Callable[[Callable[_P, _T]], Callable[_P, _T]]":

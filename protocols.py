@@ -10,6 +10,7 @@ _KT_contra = TypeVar("_KT_contra", contravariant=True)
 _VT = TypeVar("_VT")
 _VT_co = TypeVar("_VT_co", covariant=True)
 _T = TypeVar("_T")
+_T2 = TypeVar("_T2"); _T3 = TypeVar("_T3"); _T3 = TypeVar("_T3")
 _T_co = TypeVar("_T_co", covariant=True)
 _T_contra = TypeVar("_T_contra", contravariant=True)
 

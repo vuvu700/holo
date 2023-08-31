@@ -5,8 +5,9 @@ from collections.abc import Iterable
 import traceback
 
 from holo.__typing import (
-    TypeVar, Any, Sequence, TextIO, Literal, 
+    TypeVar, Any, Sequence, TextIO, Literal, Iterator,
     Generic, Unpack, TypeVarTuple, ContextManager, Self,
+    Generator,  
 )
 from holo.dummys import DummyContext
 from holo.prettyFormats import prettyPrint, prettyTime
@@ -43,14 +44,85 @@ class Node_Words():
             return self.isEndOfWord
         return (word[0] in self.leaves) and (word[1: ] in self.leaves[word[0]])
 
+
+
+class RootTreeIter(Generic[_T]):
+    """Root of TreeIter[_T]"""
+    __slots__ = ("leafs", "isSequenceEnd")
+    def __init__(self, elements:"Iterable[Iterable[_T]]|None"=None)->None:
+        self.leafs:"dict[_T, TreeIter[_T]]" = {}
+        self.isSequenceEnd:bool = False
+        if elements is not None:
+            for elt in elements: self.addElement(elt)
+    
+    def addElement(self, element:"Iterable[_T]")->None:
+        iterator:Iterator[_T] = iter(element)
+        try: firstValue:"_T" = next(iterator)
+        except StopIteration: # => empty
+            self.isSequenceEnd = True
+            return
+        
+        tree:"TreeIter[_T]|None" = self.leafs.get(firstValue, None)
+        if tree is None: 
+            self.leafs[firstValue] = \
+                tree = TreeIter(firstValue, parent=self)
+        tree._internal_addItrerator(iterator)
+    
+    def getElements(self)->"Generator[TreeIter[_T], None, None]":
+        for node in self.leafs.values():
+            yield from node.getElements()
+    
+    def getValues(self)->"Generator[Generator[_T, None, None], None, None]":
+        for elt in self.getElements():
+            yield elt.getValue()
+        
 class TreeIter(Generic[_T]):
     """A tree structure to store Iterables of Iterables (ex: list of str)"""
-    __slots__ = ("value", "isSequenceEnd", "leafs")
+    __slots__ = ("value", "isSequenceEnd", "leafs", "parent")
+    def __init__(self, value:"_T", parent:"TreeIter[_T]|RootTreeIter[_T]")->None:
+        self.value:"_T" = value
+        self.isSequenceEnd:bool = False
+        self.leafs:"dict[_T, TreeIter[_T]]" = {}
+        self.parent = parent
     
-    def __init__(self, value:_T, ) -> None:
-        ...
+    def _internal_addItrerator(self, iterator:"Iterator[_T]")->None:
+        """add to the leafs the values of the iterator"""
+        try: nextValue:"_T" = next(iterator)
+        except StopIteration: # => empty
+            self.isSequenceEnd = True
+            return
+        
+        tree:"TreeIter[_T]|None" = self.leafs.get(nextValue, None)
+        if tree is None: 
+            self.leafs[nextValue] = \
+                tree = TreeIter(nextValue, parent=self)
+        tree._internal_addItrerator(iterator)
+    
+    
+    def getElements(self)->"Generator[TreeIter[_T], None, None]":
+        """yield all the TreeItre that are end of sequence"""
+        if self.isSequenceEnd is True:
+            yield self
+        for leafTree in self.leafs.values():
+            yield from leafTree.getElements()
+    
+    def getBranche(self)->"Generator[TreeIter[_T], None, None]":
+        """yield all the TreeIter of the branche (leaf to root) \
+        (consider self the leaf of the branche)"""
+        node:"TreeIter[_T]|RootTreeIter[_T]" = self
+        while isinstance(node, TreeIter):
+            yield node
+            node = node.parent
+    
+    def getValue(self, _force:bool=False)->"Generator[_T, None, None]":
+        """yield the values of this element from the root to this leaf\
+        or raise a valueError if not the end of a sequence (and not forced)"""
+        if (self.isSequenceEnd is False) and (_force is False):
+            raise ValueError("current node isn't a sequence's end")
+        for node in reversed(list(self.getBranche())):
+            node.getValue()
+            yield node.value
 
-    
 
 def split_rec(string:str, listeOfSeparator:"list[str]")->"list[str]":
     """will turn "abcdeefghia"- > ['a', 'de', 'ia'], if the liste of spearators was ["bc", "efg"]"""
@@ -315,12 +387,19 @@ class MultiContext(tuple, ContextManager, Generic[Unpack[_Contexts]]):
 
 
 _Tuple = TypeVar("_Tuple", bound=tuple)
-def editTuple(oldTuple:"_Tuple", editAtIndex:int, newValue, checkType:bool=False)->"_Tuple":
-    """`checkType` only check that the type of teh new value is an instance of the type of the old value"""
-    if checkType is True:
-        oldValue = oldTuple[editAtIndex]
-        if isinstance(newValue, type(oldValue)) is False:
-           raise TypeError(f"the type of the new value({type(newValue)}) is not an instance of the type of the old value({type(oldValue)})")
+def editTuple(
+        oldTuple:"_Tuple", editAtIndex:int,
+        newValue:"_T", checkType:"bool|type[_T]"=False)->"_Tuple":
+    """`checkType` only check that the type of the new value is an instance of \
+        the type of the old value or the given type"""
+    if checkType is not False:
+        typeToCheck:type
+        if checkType is True:
+            typeToCheck = type(oldTuple[editAtIndex])
+        else: # => type is given
+            typeToCheck = checkType
+        if isinstance(newValue, typeToCheck) is False:
+           raise TypeError(f"the the new value (of type: {type(newValue)}) is not an instance of {typeToCheck}")
 
     return tuple( # type:ignore can be checked before with checkType=True
         (oldValue if index != editAtIndex else newValue)
