@@ -4,16 +4,13 @@ import sys
 from collections.abc import Iterable
 import traceback
 
-
 from holo.__typing import (
     TypeVar, Any, Sequence, TextIO, Literal, 
     Generic, Unpack, TypeVarTuple, ContextManager, Self,
 )
 from holo.dummys import DummyContext
 from holo.prettyFormats import prettyPrint, prettyTime
-
-
-_T = TypeVar("_T")
+from holo.protocols import _T
 
 # TODO: add un param a prettyPrint qui permet de ne pas forcer le compact récursivement mais redeterminer a chaque étape
 
@@ -46,7 +43,14 @@ class Node_Words():
             return self.isEndOfWord
         return (word[0] in self.leaves) and (word[1: ] in self.leaves[word[0]])
 
+class TreeIter(Generic[_T]):
+    """A tree structure to store Iterables of Iterables (ex: list of str)"""
+    __slots__ = ("value", "isSequenceEnd", "leafs")
+    
+    def __init__(self, value:_T, ) -> None:
+        ...
 
+    
 
 def split_rec(string:str, listeOfSeparator:"list[str]")->"list[str]":
     """will turn "abcdeefghia"- > ['a', 'de', 'ia'], if the liste of spearators was ["bc", "efg"]"""

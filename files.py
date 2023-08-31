@@ -1,14 +1,17 @@
 import os
 import shutil
 from pathlib import Path
-from io import StringIO as _StringIO
+from io import StringIO as _StringIO, DEFAULT_BUFFER_SIZE
 import random as _random
 
 from holo.__typing import (
     Literal, NamedTuple, Generator, Callable,
     DefaultDict, Iterable, TypeAlias, Union,
+    Generic,
 )
-from holo.protocols import SupportsRichComparison
+from holo.protocols import (
+    _T_co_Sized, SupportsRichComparison, SupportsRead,
+)
                            
 StrPath: TypeAlias = Union[str, Path]
 
@@ -328,3 +331,17 @@ def copyTree(src:"StrPath", dst:"StrPath", dirs_exist_ok:bool=True)->None:
             shutil.copy2(srcname, dstname)
     
     shutil.copystat(src, dst)
+
+
+class BlocksReader(Generic[_T_co_Sized]):
+    def __init__(self, file:"SupportsRead[_T_co_Sized]", blocksSize:"int|None"=None) -> None:
+        self.file:"SupportsRead[_T_co_Sized]" = file
+        self.blocksSize:int = (DEFAULT_BUFFER_SIZE if blocksSize is None else blocksSize)
+    
+    def __iter__(self)->"Generator[_T_co_Sized, None, None]":
+        content:"_T_co_Sized" = self.file.read(self.blocksSize)
+        while len(content) != 0:
+            yield content
+            content = self.file.read(self.blocksSize)
+            
+    
