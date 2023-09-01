@@ -1,127 +1,17 @@
 __author__ = "Andrieu Ludovic"
 
 import sys
-from collections.abc import Iterable
 import traceback
 
 from holo.__typing import (
-    TypeVar, Any, Sequence, TextIO, Literal, Iterator,
+    TypeVar, Any, TextIO, Literal, Iterable,
     Generic, Unpack, TypeVarTuple, ContextManager, Self,
-    Generator,  
 )
 from holo.dummys import DummyContext
 from holo.prettyFormats import prettyPrint, prettyTime
-from holo.protocols import _T
+from holo.treeStrcutures import Node_Words, RootTreeIter, TreeIter
+from holo.protocols import _T, _T2
 
-# TODO: add un param a prettyPrint qui permet de ne pas forcer le compact récursivement mais redeterminer a chaque étape
-
-class Node_Words():
-    """ABR specialized O(log2 n) to search Iterable in large amount of other Iterable :\n
-    a practical exemple with searching word in a liste of words"""
-
-    __slots__ = ("letter", "isEndOfWord", "leaves")
-
-    def __init__(self, letter:"str|Any")->None:
-        self.letter:"str|Any" = letter
-        self.isEndOfWord:bool = False
-        self.leaves:"dict[str|Any, Node_Words]" = dict()
-
-    def addWord(self, word:"Sequence[str|Any]")->None:
-        """add an Iterable to the ABR, the Iterable must have hashable items"""
-        if len(word) > 0:
-            letter = word[0]
-            leaves = self.leaves
-            if letter in leaves:
-                leaves[letter].addWord(word[1: ]) # continue to add the word on the node
-            else:
-                # reccursively create a new node and continue to add the word on it
-                leaves.setdefault(letter,  Node_Words(letter)).addWord(word[1: ])
-
-        else: self.isEndOfWord = True
-
-    def __contains__(self, word:"Sequence[str|Any]")->bool:
-        if len(word) == 0:
-            return self.isEndOfWord
-        return (word[0] in self.leaves) and (word[1: ] in self.leaves[word[0]])
-
-
-
-class RootTreeIter(Generic[_T]):
-    """Root of TreeIter[_T]"""
-    __slots__ = ("leafs", "isSequenceEnd")
-    def __init__(self, elements:"Iterable[Iterable[_T]]|None"=None)->None:
-        self.leafs:"dict[_T, TreeIter[_T]]" = {}
-        self.isSequenceEnd:bool = False
-        if elements is not None:
-            for elt in elements: self.addElement(elt)
-    
-    def addElement(self, element:"Iterable[_T]")->None:
-        iterator:Iterator[_T] = iter(element)
-        try: firstValue:"_T" = next(iterator)
-        except StopIteration: # => empty
-            self.isSequenceEnd = True
-            return
-        
-        tree:"TreeIter[_T]|None" = self.leafs.get(firstValue, None)
-        if tree is None: 
-            self.leafs[firstValue] = \
-                tree = TreeIter(firstValue, parent=self)
-        tree._internal_addItrerator(iterator)
-    
-    def getElements(self)->"Generator[TreeIter[_T], None, None]":
-        for node in self.leafs.values():
-            yield from node.getElements()
-    
-    def getValues(self)->"Generator[Generator[_T, None, None], None, None]":
-        for elt in self.getElements():
-            yield elt.getValue()
-        
-class TreeIter(Generic[_T]):
-    """A tree structure to store Iterables of Iterables (ex: list of str)"""
-    __slots__ = ("value", "isSequenceEnd", "leafs", "parent")
-    def __init__(self, value:"_T", parent:"TreeIter[_T]|RootTreeIter[_T]")->None:
-        self.value:"_T" = value
-        self.isSequenceEnd:bool = False
-        self.leafs:"dict[_T, TreeIter[_T]]" = {}
-        self.parent = parent
-    
-    def _internal_addItrerator(self, iterator:"Iterator[_T]")->None:
-        """add to the leafs the values of the iterator"""
-        try: nextValue:"_T" = next(iterator)
-        except StopIteration: # => empty
-            self.isSequenceEnd = True
-            return
-        
-        tree:"TreeIter[_T]|None" = self.leafs.get(nextValue, None)
-        if tree is None: 
-            self.leafs[nextValue] = \
-                tree = TreeIter(nextValue, parent=self)
-        tree._internal_addItrerator(iterator)
-    
-    
-    def getElements(self)->"Generator[TreeIter[_T], None, None]":
-        """yield all the TreeItre that are end of sequence"""
-        if self.isSequenceEnd is True:
-            yield self
-        for leafTree in self.leafs.values():
-            yield from leafTree.getElements()
-    
-    def getBranche(self)->"Generator[TreeIter[_T], None, None]":
-        """yield all the TreeIter of the branche (leaf to root) \
-        (consider self the leaf of the branche)"""
-        node:"TreeIter[_T]|RootTreeIter[_T]" = self
-        while isinstance(node, TreeIter):
-            yield node
-            node = node.parent
-    
-    def getValue(self, _force:bool=False)->"Generator[_T, None, None]":
-        """yield the values of this element from the root to this leaf\
-        or raise a valueError if not the end of a sequence (and not forced)"""
-        if (self.isSequenceEnd is False) and (_force is False):
-            raise ValueError("current node isn't a sequence's end")
-        for node in reversed(list(self.getBranche())):
-            node.getValue()
-            yield node.value
 
 
 def split_rec(string:str, listeOfSeparator:"list[str]")->"list[str]":
