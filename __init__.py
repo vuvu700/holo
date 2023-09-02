@@ -226,7 +226,7 @@ def print_exception(error:BaseException, file:"TextIO|Literal['stderr', 'stdout'
 
 
 class Pointer(Generic[_T]):
-    def __init__(self, value:"_T"=...)->None:
+    def __init__(self, value:"_T"=...)->None: # type: ignore -> the unkown state is whanted when no default value is given
         self.__setted:bool = False
         if value is not ...:
             self.__value:"_T" = value

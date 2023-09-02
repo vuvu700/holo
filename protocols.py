@@ -73,6 +73,13 @@ class SupportsDivMod(Protocol[_T_contra, _T_co]):
 class SupportsRDivMod(Protocol[_T_contra, _T_co]):
     def __rdivmod__(self, __other: _T_contra) -> _T_co: ...
 
+class SupportsDivModRec(Protocol[_T_contra, _T_co]):
+    """this protocol is meant for divmod_rec() @ holo.calc"""
+    def __divmod__(
+        self, __other: _T_contra
+        ) -> "tuple[_T_co, SupportsDivModRec[_T_contra, _T_co]]": ...
+
+
 # This protocol is generic over the iterator type, while Iterable is
 # generic over the type that is iterated over.
 class SupportsIter(Protocol[_T_co]):

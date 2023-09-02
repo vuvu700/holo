@@ -241,10 +241,10 @@ def prettyTime(t:float)->str:
     elif t < (3600.): # minutes
         return f"{int(t//60)} min {t%60:.1f} sec"
     elif t < (3600. * 24): # hours
-        (nbH, nbMin, nbSec) = divmod_rec(t, 3600, 60)
+        (nbH, nbMin, nbSec) = divmod_rec(t, [3600, 60])
         return f"{int(nbH)} h {int(nbMin)} min {nbSec:.1f} sec"
     elif t < (3600.* 24 * 7): # few days (high res)
-        (nbDay, nbH, nbMin, nbSec) = divmod_rec(t, 3600*24, 3600, 60)
+        (nbDay, nbH, nbMin, nbSec) = divmod_rec(t, [3600*24, 3600, 60])
         return f"{int(nbDay)} day {int(nbH)} h {int(nbMin)} min {nbSec:.1f} sec"
     else: # many days (low res)
         return f"{t/(3600*24):.1f} day"
@@ -260,8 +260,8 @@ def get_prettyTime_Formater(
         "ms": lambda t: f"{round(t*1e3, 3)} ms",
         "s": lambda t: f"{t:.3f} sec",
         "min": lambda t: f"{t//60} min {round(t%60, 1)} sec",
-        "h": lambda t: "%d h %d min %d sec".format(*divmod_rec(int(t), 3600, 60)),
-        "day": lambda t: "%d day %d h %d min".format(*divmod_rec(int(t), 3600*24, 3600, 60)),
+        "h": lambda t: "%d h %d min %d sec".format(*divmod_rec(int(t), [3600, 60])),
+        "day": lambda t: "%d day %d h %d min".format(*divmod_rec(int(t), [3600*24, 3600, 60])),
         "days": lambda t: f"{round(t/(3600*24), 1)} day",
     }[timeScale]
 
