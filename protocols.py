@@ -1,5 +1,13 @@
-from collections.abc import Awaitable, Iterable, Set as AbstractSet, Sized
-from holo.__typing import Protocol, TypeVar, Any, TypeAlias, Union
+from collections.abc import (
+    Awaitable, Iterable, Set as AbstractSet, 
+    Sized, Container,
+)
+from holo.__typing import (
+    Protocol, TypeVar, Any, TypeAlias, Union, runtime_checkable,
+    Mapping, Sequence, NamedTuple,
+    # pretty format types
+    _Pretty_CompactRules,
+)
 
 # some code extracted from /*vscode-pylance*/dist/typeshed_fallback/stdlib/_typeshed/__init__.py
 
@@ -127,3 +135,29 @@ class SupportsRead(Protocol[_T_co_Sized]):
 
 class SupportsWrite(Protocol[_T_contra_Sized]):
     def write(self, __buffer: _T_contra_Sized) -> int: ...
+
+
+
+# pretty format protocols
+
+@runtime_checkable
+class SupportsStr(Protocol):
+    """(runtime checkable)"""
+    def __str__(self)->str:
+        ...
+        
+class IterableContainer(Iterable, Container, Protocol): ...
+
+@runtime_checkable
+class SupportsPretty(Protocol):
+    """(runtime checkable)"""
+    def __pretty__(self, compactRules:"_Pretty_CompactRules|None")->"_PrettyPrintable":
+        """return the new object the pretty print\n
+        `compactRules` None when not compactPrint, _Pretty_CompactRules when compactPrint"""
+        ...
+
+_PrettyPrintable = Union[
+    SupportsPretty, NamedTuple, Mapping, Sequence,
+    IterableContainer, SupportsStr, str, bytes,
+]
+"""not a protocol but needed for SupportsPretty"""
