@@ -146,7 +146,7 @@ class SupportsStr(Protocol):
     def __str__(self)->str:
         ...
         
-class IterableContainer(Iterable, Container, Protocol): ...
+class IterableContainer(Iterable[_T_co], Container, Protocol[_T_co]): ...
 
 @runtime_checkable
 class SupportsPretty(Protocol):
@@ -157,7 +157,10 @@ class SupportsPretty(Protocol):
         ...
 
 _PrettyPrintable = Union[
-    SupportsPretty, NamedTuple, Mapping, Sequence,
-    IterableContainer, SupportsStr, str, bytes,
+    SupportsPretty, NamedTuple,
+    Mapping["_PrettyPrintable", "_PrettyPrintable"],
+    Sequence["_PrettyPrintable"],
+    IterableContainer["_PrettyPrintable"],
+    SupportsStr, str, bytes,
 ]
 """not a protocol but needed for SupportsPretty"""
