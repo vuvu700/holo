@@ -1,6 +1,6 @@
 from collections.abc import (
     Awaitable, Iterable, Set as AbstractSet, 
-    Sized, Container,
+    Sized, Container, Iterator, Collection
 )
 from holo.__typing import (
     Protocol, TypeVar, Any, TypeAlias, Union, runtime_checkable,
@@ -93,6 +93,9 @@ class SupportsDivModRec(Protocol[_T_contra, _T_co]):
 class SupportsIter(Protocol[_T_co]):
     def __iter__(self) -> _T_co: ...
 
+class SupportsIterable(SupportsIter[_T_co], Protocol):
+    def __iter__(self)->"Iterator[_T_co]": ...
+
 # This protocol is generic over the iterator type, while AsyncIterable is
 # generic over the type that is iterated over.
 class SupportsAiter(Protocol[_T_co]):
@@ -146,7 +149,7 @@ class SupportsStr(Protocol):
     def __str__(self)->str:
         ...
         
-class IterableContainer(Iterable[_T_co], Container, Protocol[_T_co]): ...
+class IterableContainer(SupportsIterable[_T_co], Container, Protocol[_T_co]): ...
 
 @runtime_checkable
 class SupportsPretty(Protocol):
@@ -160,7 +163,7 @@ _PrettyPrintable = Union[
     SupportsPretty, NamedTuple,
     Mapping["_PrettyPrintable", "_PrettyPrintable"],
     Sequence["_PrettyPrintable"],
-    IterableContainer["_PrettyPrintable"],
+    "AbstractSet[_PrettyPrintable]",
     SupportsStr, str, bytes,
 ]
 """not a protocol but needed for SupportsPretty"""
