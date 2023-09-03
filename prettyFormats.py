@@ -84,7 +84,7 @@ class _PP_compactState():
         return _PP_compactState(compactPrint=self.compactPrint, _force=forceState)
 
 def __prettyPrint_internal(
-        obj:"_T|_PrettyPrintable", currLineIndent:int,
+        obj:"_PrettyPrintable", currLineIndent:int,
         specificFormats:"dict[type[_T], Callable[[_T], str|_PrettyPrintable]]|None", 
         oldCompactState:"_PP_compactState", args:"_PrettyPrint_fixedArgs")->None:
     """`compactUnder` if the size (in elts) of the object is under its value, print it more compactly\n
@@ -174,7 +174,7 @@ def __prettyPrint_internal(
         if compactNewLine is False: # new line
             args.stream.write("\n")
             if compactIndent is False: # indent the new line
-                args.stream.write(args.getIndent(currLineIndent+1))
+                args.stream.write(args.getIndent(currLineIndent))
 
         # delimiter close
         args.stream.write(delimiter.close)
@@ -228,7 +228,7 @@ def __prettyPrint_internal(
         args.stream.write(args.toStringFunc(obj))
 
 def prettyPrint(
-        obj:"_T|_PrettyPrintable", indentSequence:str=" "*4, compact:"bool|None|PrettyPrint_CompactArgs"=False,
+        obj:"_PrettyPrintable", indentSequence:str=" "*4, compact:"bool|None|PrettyPrint_CompactArgs"=False,
         stream:"TextIO|None"=None, specificFormats:"dict[type[_T], Callable[[_T], str|Any]]|None"=None, end:"str|None"="\n",
         _defaultStrFunc:"Callable[[object], str]"=str, startIndent:int=0)->None:
     """/!\\ may not be as optimized as pprint but prettier print\n
@@ -265,7 +265,7 @@ def prettyPrint(
     if end is not None:
         stream.write(end)
 
-def prettyString(obj:"_T|_PrettyPrintable", indentSequence:str=" "*4, compact:"bool|None|PrettyPrint_CompactArgs"=False,
+def prettyString(obj:"_PrettyPrintable", indentSequence:str=" "*4, compact:"bool|None|PrettyPrint_CompactArgs"=False,
         specificFormats:"dict[type[_T], Callable[[_T], str|Any]]|None"=None,
         _defaultStrFunc:"Callable[[object], str]"=str, startIndent:int=0)->str:
     stream = StringIO()
