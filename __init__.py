@@ -4,7 +4,7 @@ import sys
 import traceback
 
 from holo.__typing import (
-    TypeVar, Any, TextIO, Literal, Iterable,
+    TypeVar, Any, TextIO, Literal, Iterable, NamedTuple,
     Generic, Unpack, TypeVarTuple, ContextManager, Self,
 )
 from holo.dummys import DummyContext
@@ -298,11 +298,19 @@ def editTuple(
 
 
 
-
-
 def assertIsinstance(value:Any, type_:"type[_T]")->_T:
     """assert the type of value using assert isinstance(...), ... \n
     NOTE: using -OO makes this func equaivalent to cast(...)"""
     assert isinstance(value, type_), TypeError(f"the type if value: {type(value)} isn't an instance of type_={type_}")
     return value
-    
+
+
+_T_NamedTuple = TypeVar("_T_NamedTuple", bound=NamedTuple)
+
+def prettyfyNamedTuple(cls:"type[_T_NamedTuple]")->"type[_T_NamedTuple]":
+    """currently impossible to type but the retuned type \
+        satisfy holo.protocols.SupportsPretty"""
+    def __pretty__(self:_T_NamedTuple, compactRules):
+        return self._asdict()
+    setattr(cls, "__pretty__", __pretty__) 
+    return cls

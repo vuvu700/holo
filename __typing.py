@@ -6,6 +6,7 @@ from typing import (
     Generator, NamedTuple, Union, overload,
     Callable, Mapping, Sized, cast, NoReturn,
     DefaultDict, Iterator, Type, Container,
+    TYPE_CHECKING,
 )
 if sys.version_info < (3, 11):
     from typing_extensions import (
