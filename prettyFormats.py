@@ -36,8 +36,8 @@ DEFAULT_MAPPING_DELIM = _Pretty_Delimiter("{", "}")
 DEFAULT_ITERABLE_DELIM = _Pretty_Delimiter("[", "]")
 
 DEFAULT_COMPACT_RULES:"_Pretty_CompactRules" = \
-    _Pretty_CompactRules(newLine=True, indent=True, spacing=True)
-"""when compacting, it compact newLines, indents and spacing"""
+    _Pretty_CompactRules(newLine=True, indent=True, spacing=False)
+"""when compacting, it compact newLines, indents but keep spacing spacing"""
 
 class PrettyPrint_CompactArgs():
     __slots__ = ("compactSmaller", "compactLarger", "compactSpecifics", "keepReccursiveCompact", "compactRules")
@@ -115,9 +115,9 @@ def __prettyPrint_internal(
     )
     compactPrint:bool = currenCompactState.compactPrint
     compactRules:"_Pretty_CompactRules" = args.compactArgs.compactRules
-    compactNewLine:bool = (compactPrint is True) or (compactRules.newLine is False)
-    compactIndent:bool = (compactPrint is True) or (compactRules.indent is False)
-    compactSpacing:bool = (compactPrint is True) or (compactRules.spacing is False)
+    compactNewLine:bool = (compactPrint and compactRules.newLine)
+    compactIndent:bool = (compactPrint and compactRules.indent)
+    compactSpacing:bool = (compactPrint and compactRules.spacing)
 
     if isinstance(obj, SupportsPretty):
         __prettyPrint_internal(
@@ -319,7 +319,7 @@ def get_prettyTime_Formater(
     }[timeScale]
 
 
-def prettyDataSizeOctes(nbOctes:int)->str:
+def prettyDataSizeOctes(nbOctes:"int|float")->str:
     """print a data size value in a more redable way"""
     if nbOctes > 1e12: return f"{round(nbOctes/1e12, 3)} To"
     elif nbOctes > 1e9: return f"{round(nbOctes/1e9, 3)} Go"
@@ -327,7 +327,7 @@ def prettyDataSizeOctes(nbOctes:int)->str:
     elif nbOctes > 1e3: return f"{round(nbOctes/1e3, 3)} Ko"
     else: return f"{nbOctes} o"
 
-def prettyDataSizeBytes(nbBytes:int)->str:
+def prettyDataSizeBytes(nbBytes:"int|float")->str:
     """print a data size value in a more redable way"""
     if nbBytes > 1e12: return f"{round(nbBytes/1e12, 3)} Tb"
     elif nbBytes > 1e9: return f"{round(nbBytes/1e9, 3)} Gb"
