@@ -230,7 +230,7 @@ def __prettyPrint_internal(
 def prettyPrint(
         obj:"_PrettyPrintable", indentSequence:str=" "*4, compact:"bool|None|PrettyPrint_CompactArgs"=False,
         stream:"TextIO|None"=None, specificFormats:"dict[type[_T], Callable[[_T], str|Any]]|None"=None, end:"str|None"="\n",
-        _defaultStrFunc:"Callable[[object], str]"=str, startIndent:int=0)->None:
+        specificCompact:"set[type]|None"=None, _defaultStrFunc:"Callable[[object], str]"=str, startIndent:int=0)->None:
     """/!\\ may not be as optimized as pprint but prettier print\n
     default `stream` -> stdout\n
     `compact` ...\n
@@ -254,6 +254,13 @@ def prettyPrint(
         startCompactState = _PP_compactState(False, _force=None)
     else: raise TypeError(f"invalide type of the compact parameter: {type(compact)}")
 
+    if specificCompact is not None:
+        if compactArgs.compactSpecifics is not None:
+            # => merge the two sets
+            compactArgs.compactSpecifics.update(specificCompact)
+        else: # => no current set => use the given one
+            compactArgs.compactSpecifics = specificCompact
+
     __prettyPrint_internal(
         obj, currLineIndent=startIndent, specificFormats=specificFormats,
         oldCompactState=startCompactState,
@@ -265,13 +272,14 @@ def prettyPrint(
     if end is not None:
         stream.write(end)
 
-def prettyString(obj:"_PrettyPrintable", indentSequence:str=" "*4, compact:"bool|None|PrettyPrint_CompactArgs"=False,
-        specificFormats:"dict[type[_T], Callable[[_T], str|Any]]|None"=None,
+def prettyString(
+        obj:"_PrettyPrintable", indentSequence:str=" "*4, compact:"bool|None|PrettyPrint_CompactArgs"=False,
+        specificFormats:"dict[type[_T], Callable[[_T], str|Any]]|None"=None, specificCompact:"set[type]|None"=None,
         _defaultStrFunc:"Callable[[object], str]"=str, startIndent:int=0)->str:
     stream = StringIO()
     prettyPrint(
-        obj=obj, indentSequence=indentSequence, compact=compact,
-        stream=stream, specificFormats=specificFormats, end=None,
+        obj=obj, indentSequence=indentSequence, compact=compact, stream=stream,
+        specificFormats=specificFormats, end=None, specificCompact=specificCompact,
         _defaultStrFunc=_defaultStrFunc, startIndent=startIndent,
     )
     return stream.getvalue()
