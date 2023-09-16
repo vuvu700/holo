@@ -102,13 +102,18 @@ class ExtentionInfos(NamedTuple):
     totalSize: int
     sizeProportion: float
 
-def getSizeInfos(directory:Path, maxDepth:int=-1, checkPermission:bool=True)->"list[ExtentionInfos]":
+def getSizeInfos(
+        directory:Path, maxDepth:"int|None"=None,
+        checkPermission:bool=True, fullExtention:bool=False)->"list[ExtentionInfos]":
     nbFiles:"dict[str, int]" = DefaultDict(lambda : 0)
     totalSize:"dict[str, int]" = DefaultDict(lambda : 0)
     for file in getFilesInfos(
             directory, maxDepth=maxDepth, ordered=False,
             checkPermission=checkPermission):
-        extention:str =  "".join(Path(file.name).suffixes)
+        extention:str
+        if fullExtention is True:
+            extention = "".join(Path(file.name).suffixes)
+        else: extention = "".join(Path(file.name).suffix)
         nbFiles[extention] += 1
         totalSize[extention] += file.stat().st_size
     

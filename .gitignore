@@ -1,2 +1,10 @@
 **/__pycache__
 **/.vscode
+# cython related
+**/*.pyd
+**/*.so
+build/**
+cython_debug/**
+**/*.c
+**/*.html
+**/*.c.dep
