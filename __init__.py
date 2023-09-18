@@ -8,7 +8,7 @@ from holo.__typing import (
     Generic, Unpack, TypeVarTuple, ContextManager, Self,
 )
 from holo.dummys import DummyContext
-from holo.prettyFormats import prettyPrint, prettyTime
+from holo.prettyFormats import prettyPrint, prettyTime, _ObjectRepr
 from holo.treeStrcutures import Node_Words, RootTreeIter, TreeIter
 from holo.protocols import _T, _T2
 
@@ -310,7 +310,7 @@ _T_NamedTuple = TypeVar("_T_NamedTuple", bound=NamedTuple)
 def prettyfyNamedTuple(cls:"type[_T_NamedTuple]")->"type[_T_NamedTuple]":
     """currently impossible to type but the retuned type \
         satisfy holo.protocols.SupportsPretty"""
-    def __pretty__(self:_T_NamedTuple, compactRules):
-        return self._asdict()
+    def __pretty__(self:_T_NamedTuple, *args, **kwargs):
+        return _ObjectRepr(self.__class__.__name__, (), self._asdict())
     setattr(cls, "__pretty__", __pretty__) 
     return cls

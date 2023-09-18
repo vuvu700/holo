@@ -4,10 +4,12 @@ from collections.abc import (
 )
 from holo.__typing import (
     Protocol, TypeVar, Any, TypeAlias, Union, runtime_checkable,
-    Mapping, Sequence, NamedTuple,
-    # pretty format types
-    _Pretty_CompactRules,
+    Mapping, Sequence, NamedTuple, TYPE_CHECKING, overload,
+    _PrettyPrintable,
 )
+
+if TYPE_CHECKING:
+    from holo.prettyFormats import _Pretty_CompactRules
 
 # some code extracted from /*vscode-pylance*/dist/typeshed_fallback/stdlib/_typeshed/__init__.py
 
@@ -149,21 +151,14 @@ class SupportsStr(Protocol):
     def __str__(self)->str:
         ...
         
-class IterableContainer(SupportsIterable[_T_co], Container, Protocol[_T_co]): ...
-
 @runtime_checkable
 class SupportsPretty(Protocol):
     """(runtime checkable)"""
-    def __pretty__(self, compactRules:"_Pretty_CompactRules|None")->"_PrettyPrintable":
-        """return the new object the pretty print\n
-        `compactRules` None when not compactPrint, _Pretty_CompactRules when compactPrint"""
+    @overload
+    def __pretty__(self, *args, **kwargs)->"_PrettyPrintable": ...
+    @overload
+    def __pretty__(self, compactRules:"_Pretty_CompactRules|None"=None)->"_PrettyPrintable": ...
+    def __pretty__(self, compactRules:"_Pretty_CompactRules|None"=None, *args, **kwargs)->"_PrettyPrintable":
+        """return the new object to pretty print\n
+        `compactRules`: None when not specified"""
         ...
-
-_PrettyPrintable = Union[
-    SupportsPretty, NamedTuple,
-    Mapping["_PrettyPrintable", "_PrettyPrintable"],
-    Sequence["_PrettyPrintable"],
-    "AbstractSet[_PrettyPrintable]",
-    SupportsStr, str, bytes,
-]
-"""not a protocol but needed for SupportsPretty"""

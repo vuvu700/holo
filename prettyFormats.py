@@ -1,23 +1,21 @@
 import sys
-from collections.abc import Iterable
 from io import StringIO
 
 from holo.calc import divmod_rec
 from holo.__typing import (
-    Any, TextIO, NamedTuple,
-    Callable, Mapping, TypeVar,
-    Sized, Literal, TypeGuard, 
-    Sequence, Container, 
-    # pretty types
-    _Pretty_CompactRules, _Pretty_Delimiter,
+    Any, TextIO, NamedTuple, Callable, 
+    Mapping, Iterable, Sequence, AbstractSet,
+    TypeVar, Sized, Literal, TypeGuard, 
+    Sequence, _PrettyPrintable,
 )
-from holo.protocols import (
-    _T, SupportsPretty, _PrettyPrintable, 
-)
+from holo.protocols import _T, SupportsPretty
 
 
 def isinstanceNamedTuple(obj:object)->TypeGuard[NamedTuple]:
     return (isinstance(obj, tuple) and hasattr(obj, '_asdict') and hasattr(obj, '_fields'))
+
+
+
 
 class _PrettyPrint_fixedArgs(NamedTuple):
     stream:TextIO
@@ -28,16 +26,31 @@ class _PrettyPrint_fixedArgs(NamedTuple):
     def getIndent(self, nbIndents:int)->str:
         return self.indentSequence * nbIndents
 
+
+class _Pretty_Delimiter(NamedTuple):
+    open:str; close:str
+
 _PP_specialDelimChars:"dict[type, _Pretty_Delimiter]" = {
     dict:_Pretty_Delimiter('{', '}'),  list:_Pretty_Delimiter('[', ']'),
     set:_Pretty_Delimiter('{', '}'), tuple:_Pretty_Delimiter('(', ')'),
 }
 DEFAULT_MAPPING_DELIM = _Pretty_Delimiter("{", "}")
 DEFAULT_ITERABLE_DELIM = _Pretty_Delimiter("[", "]")
+EMPTY_DELIM = _Pretty_Delimiter("", "")
+
+
+class _Pretty_CompactRules(NamedTuple):
+    """ - True => compact it\n
+     - False => don't compact it\n
+    when compacting: use the given rule\n
+    NOTE: `key` is not affected by the current compacting state, \
+        force the compacting reccursively"""
+    newLine:bool; seqSpacing:bool; mapSpacing:bool
+    indent:bool; key:bool
 
 DEFAULT_COMPACT_RULES:"_Pretty_CompactRules" = \
-    _Pretty_CompactRules(newLine=True, indent=True, spacing=False)
-"""when compacting, it compact newLines, indents but keep spacing spacing"""
+    _Pretty_CompactRules(newLine=True, indent=True, seqSpacing=False, mapSpacing=False, key=True)
+"""when compacting, it compact newLines, indents and keys but don't compact the spacing"""
 
 class PrettyPrint_CompactArgs():
     __slots__ = ("compactSmaller", "compactLarger", "compactSpecifics", "keepReccursiveCompact", "compactRules")
@@ -62,16 +75,14 @@ class PrettyPrint_CompactArgs():
             objSize:int = len(obj)
             if (self.compactSmaller is not False) and (objSize <= self.compactSmaller):
                 return True
-            if (self.compactLarger is not False) and (objSize >= self.compactSmaller):
+            if (self.compactLarger is not False) and (objSize >= self.compactLarger):
                 return True
         ### compact based on specific type
         if self.compactSpecifics is None: 
             return False # no specific rule
-        if type(obj) in self.compactSpecifics:
-            return True # => exact type match
-        # test if is instance of any specific rule
         return type(obj) in self.compactSpecifics
-        
+
+
 class _PP_compactState():
     __slots__ = ("compactPrint", "_force")
     def __init__(self, compactPrint:bool, _force:"bool|None"=None) -> None:
@@ -83,10 +94,128 @@ class _PP_compactState():
     def force(self, forceState:"bool|None")->"_PP_compactState":
         return _PP_compactState(compactPrint=self.compactPrint, _force=forceState)
 
+
+class _PP_KeyValuePair(NamedTuple):
+    key:"_PrettyPrintable"; value:"_PrettyPrintable"
+def _iterableToPairs(objItems:"Iterable[tuple[_PrettyPrintable, _PrettyPrintable]]")->"Iterable[_PP_KeyValuePair]":
+    return map(lambda pair: _PP_KeyValuePair(*pair), objItems)
+
+class _ObjectRepr(NamedTuple):
+    className:str
+    args:"tuple[_PrettyPrintable, ...]"
+    kwargs:"dict[str, _PrettyPrintable]"
+
+
+
+def __prettyPrint_internal__print_Generic(
+        objItems:"Iterable[_PP_KeyValuePair]|Iterable[_PrettyPrintable]", isMapping:bool,
+        separatorSequence:str, keyToValue_sequence:str, delimiter:"_Pretty_Delimiter",
+        currCompactRules:"_Pretty_CompactRules", printEndingSeparator:bool,
+        printStartingSequence:bool, printEndingSeqence:bool, currLineIndent:int,
+        specificFormats:"dict[type[_T], Callable[[_T], str|_PrettyPrintable]]|None",
+        currenCompactState:"_PP_compactState", fixedArgs:"_PrettyPrint_fixedArgs")->None:
+    """internal that pretty print `mapping like` or `sequence like` objects"""
+    
+    # delimiter open
+    fixedArgs.stream.write(delimiter.open)
+
+    # create compact sequences
+    isFirstElt:bool = True
+    
+    if currCompactRules.seqSpacing is False:
+        if currCompactRules.newLine is True: # don't add an ending space when a new line
+            separatorSequence = separatorSequence + " "
+    if currCompactRules.mapSpacing is False:
+        keyToValue_sequence = keyToValue_sequence + " "
+    
+    if currCompactRules.newLine is False: # new line
+        separatorSequence = separatorSequence + "\n"
+        if printStartingSequence is True:
+            fixedArgs.stream.write("\n")
+        if currCompactRules.indent is False: # indent the new lines
+            nextElementSequence = fixedArgs.getIndent(currLineIndent+1)
+            separatorSequence = separatorSequence + nextElementSequence
+            if printStartingSequence is True:
+                fixedArgs.stream.write(nextElementSequence)
+    
+    for subObj in objItems:
+        if isFirstElt is True: isFirstElt = False
+        else: # => not the first element
+            fixedArgs.stream.write(separatorSequence)
+        if (isMapping is True) and isinstance(subObj, _PP_KeyValuePair):
+            # key
+            __prettyPrint_internal(
+                obj=subObj.key, currLineIndent=currLineIndent+1, specificFormats=specificFormats,
+                oldCompactState=currenCompactState.force(currCompactRules.key),
+                fixedArgs=fixedArgs,
+                # to force compacting state seem better for a key
+            )
+            # key to value
+            fixedArgs.stream.write(keyToValue_sequence)
+            value = subObj.value
+            
+        elif isMapping is True:
+            # => (isMapping is True) and NOT isinstance(subObj, _PP_KeyValuePair)
+            raise TypeError(f"while in mapping mode, the subObj isn't an instance of {_PP_KeyValuePair} but {type(subObj)}")
+        
+        else: # => generic sequence
+            value = subObj
+        
+        # value
+        __prettyPrint_internal(
+            obj=value, currLineIndent=currLineIndent+1, specificFormats=specificFormats,
+            oldCompactState=currenCompactState, fixedArgs=fixedArgs,
+        )
+    if (isFirstElt is False) and (printEndingSeparator is True):
+        # => has printed some elements
+        fixedArgs.stream.write(separatorSequence)
+    
+    # ending sequence
+    if (currCompactRules.newLine is False) and (printEndingSeqence is True): # new line
+        fixedArgs.stream.write("\n")
+        if currCompactRules.indent is False: # indent the new line
+            fixedArgs.stream.write(fixedArgs.getIndent(currLineIndent))
+
+    # delimiter close
+    fixedArgs.stream.write(delimiter.close)
+    
+
+def __prettyPrint_internal__print_ObjectRepr(
+        obj:"_ObjectRepr", currCompactRules:"_Pretty_CompactRules", currLineIndent:int,
+        specificFormats:"dict[type[_T], Callable[[_T], str|_PrettyPrintable]]|None",
+        currenCompactState:"_PP_compactState", fixedArgs:"_PrettyPrint_fixedArgs")->None:
+    """internal that pretty print `mapping like` or `sequence like` objects"""
+    fixedArgs.stream.write(obj.className)
+    fixedArgs.stream.write("(")
+    # size check needed: without this condition an empty object
+    #   will print a starting sequence and an ending sequence
+    argsIsEmpty:bool = (len(obj.args) != 0)
+    kwargsIsEmpty:bool = (len(obj.kwargs) != 0)
+    if (argsIsEmpty is False) or (kwargsIsEmpty is False):
+        __prettyPrint_internal__print_Generic(
+            objItems=obj.args, isMapping=False, printEndingSeparator=kwargsIsEmpty,
+            separatorSequence=",", keyToValue_sequence="",
+            delimiter=EMPTY_DELIM, currCompactRules=currCompactRules,
+            printStartingSequence=True, printEndingSeqence=False,
+            currLineIndent=currLineIndent, specificFormats=specificFormats,
+            currenCompactState=currenCompactState, fixedArgs=fixedArgs,
+        )
+        __prettyPrint_internal__print_Generic(
+            objItems=_iterableToPairs(obj.kwargs.items()), isMapping=True,
+            separatorSequence=",", keyToValue_sequence="=", printEndingSeparator=False,
+            delimiter=EMPTY_DELIM, currCompactRules=currCompactRules._replace(mapSpacing=True),
+            printStartingSequence=False, printEndingSeqence=True,
+            currLineIndent=currLineIndent, specificFormats=specificFormats,
+            currenCompactState=currenCompactState, fixedArgs=fixedArgs,
+        )
+    else: pass # => empty repr => nothing to print
+    fixedArgs.stream.write(")")
+
+
 def __prettyPrint_internal(
         obj:"_PrettyPrintable", currLineIndent:int,
-        specificFormats:"dict[type[_T], Callable[[_T], str|_PrettyPrintable]]|None", 
-        oldCompactState:"_PP_compactState", args:"_PrettyPrint_fixedArgs")->None:
+        specificFormats:"dict[type[_T], Callable[[_T], str|_PrettyPrintable]]|None",
+        oldCompactState:"_PP_compactState", fixedArgs:"_PrettyPrint_fixedArgs")->None:
     """`compactUnder` if the size (in elts) of the object is under its value, print it more compactly\n
     `specificFormats` is a dict: type -> (func -> obj -> str), if an obj is an instance use this to print\n
     `printClassName` whether it will print the class before printing the object (True->alway, None->default, False->never)\n"""
@@ -98,137 +227,76 @@ def __prettyPrint_internal(
             # obj will use a specific format
             newObj:"str|Any" = formatFunc(obj)
             if isinstance(newObj, str):
-                args.stream.write(newObj)
+                fixedArgs.stream.write(newObj)
             else:
                 __prettyPrint_internal(
                     obj=newObj, currLineIndent=currLineIndent,
                     oldCompactState=oldCompactState,
-                    specificFormats=specificFormats, args=args, 
+                    specificFormats=specificFormats, fixedArgs=fixedArgs, 
                 )
             return None
 
     ## then use the general rule
-    isFirstElt:bool
-    separatorSequence:str
     currenCompactState:"_PP_compactState" = oldCompactState.newFromCompactPrint(
-        args.compactArgs.newCompactPrint(obj, oldCompactState)
+        fixedArgs.compactArgs.newCompactPrint(obj, oldCompactState)
     )
-    compactPrint:bool = currenCompactState.compactPrint
-    compactRules:"_Pretty_CompactRules" = args.compactArgs.compactRules
-    compactNewLine:bool = (compactPrint and compactRules.newLine)
-    compactIndent:bool = (compactPrint and compactRules.indent)
-    compactSpacing:bool = (compactPrint and compactRules.spacing)
+    doCompactPrint:bool = currenCompactState.compactPrint
+    currentCompactRules = _Pretty_CompactRules(
+        newLine=(doCompactPrint and fixedArgs.compactArgs.compactRules.newLine),
+        seqSpacing=(doCompactPrint and fixedArgs.compactArgs.compactRules.seqSpacing),
+        mapSpacing=(doCompactPrint and fixedArgs.compactArgs.compactRules.mapSpacing),
+        indent=(doCompactPrint and fixedArgs.compactArgs.compactRules.indent),
+        key=fixedArgs.compactArgs.compactRules.key, # keep the rule even when not compacting
+    )
 
     if isinstance(obj, SupportsPretty):
         __prettyPrint_internal(
-            obj=obj.__pretty__(compactRules if compactPrint is True else None),
+            obj=obj.__pretty__(compactRules=currentCompactRules),
             currLineIndent=currLineIndent, oldCompactState=oldCompactState,
-            specificFormats=specificFormats, args=args, 
+            specificFormats=specificFormats, fixedArgs=fixedArgs, 
         )
-            
+    
+    elif isinstance(obj, _ObjectRepr):
+        __prettyPrint_internal__print_ObjectRepr(
+            obj=obj, currCompactRules=currentCompactRules,
+            currLineIndent=currLineIndent, specificFormats=specificFormats,
+            currenCompactState=currenCompactState, fixedArgs=fixedArgs,
+        )
+           
     elif isinstance(obj, Mapping) or isinstanceNamedTuple(obj): # /!\ Mapping and NamedTuple can be iterable
-        # delimiter open
         delimiter = _PP_specialDelimChars.get(type(obj), DEFAULT_MAPPING_DELIM)
-        args.stream.write(delimiter.open)
-
-        # create compact sequences
-        isFirstElt = True
-        separatorSequence:str = ","
-        keyToValue_sequence:str = ":"
-        
-        if compactSpacing is False:
-            keyToValue_sequence =  keyToValue_sequence + " "
-            if compactNewLine is True: # don't add an ending space when a new line
-                separatorSequence = separatorSequence + " "
-        
-        if compactNewLine is False: # new line
-            separatorSequence = separatorSequence + "\n"
-            args.stream.write("\n")
-            if compactIndent is False: # indent the new lines
-                nextElementSequence = args.getIndent(currLineIndent+1)
-                separatorSequence = separatorSequence + nextElementSequence
-                args.stream.write(nextElementSequence)
-        
-        # iterate over elements
-        objItems:"Iterable[tuple[Any, Any]]" = \
+        # create iterator
+        objItems:"Iterable[tuple[_PrettyPrintable, _PrettyPrintable]]" = \
             (obj.items() if isinstance(obj, Mapping) else obj._asdict().items())
-        for key, value in objItems:
-            if isFirstElt is True: isFirstElt = False
-            else: # => not the first element
-                args.stream.write(separatorSequence)
-            # key
-            __prettyPrint_internal(
-                obj=key, currLineIndent=currLineIndent+1, specificFormats=specificFormats,
-                oldCompactState=currenCompactState.force(True), args=args,
-                # forceCompact -> True, seem better for a key
-            )
-            # key to value
-            args.stream.write(keyToValue_sequence)
-            # value
-            __prettyPrint_internal(
-                obj=value, currLineIndent=currLineIndent+1, specificFormats=specificFormats,
-                oldCompactState=currenCompactState, args=args,
-            )
+       
+        __prettyPrint_internal__print_Generic(
+            objItems=_iterableToPairs(objItems), isMapping=True,
+            separatorSequence=",", keyToValue_sequence=":", printEndingSeparator=False,
+            delimiter=delimiter, currCompactRules=currentCompactRules,
+            printStartingSequence=True, printEndingSeqence=True,
+            currLineIndent=currLineIndent, specificFormats=specificFormats,
+            currenCompactState=currenCompactState, fixedArgs=fixedArgs,
+        )
+        
 
-        # ending sequence
-        if compactNewLine is False: # new line
-            args.stream.write("\n")
-            if compactIndent is False: # indent the new line
-                args.stream.write(args.getIndent(currLineIndent))
-
-        # delimiter close
-        args.stream.write(delimiter.close)
-
-    elif (isinstance(obj, Sequence) \
-            or (isinstance(obj, Iterable) and isinstance(obj, Container))) \
-            and not (isinstance(obj, (str, bytes))): # => equivalent of `list`
-        # delimiter open
+    elif (isinstance(obj, Sequence) or isinstance(obj, AbstractSet)) and not (isinstance(obj, (str, bytes))):
         delimiter = _PP_specialDelimChars.get(type(obj), DEFAULT_ITERABLE_DELIM)
-        args.stream.write(delimiter.open)
-
-        # create compact sequences
-        isFirstElt = True
-        separatorSequence:str = ","
-        keyToValue_sequence:str = ":"
         
-        if compactSpacing is False:
-            keyToValue_sequence =  keyToValue_sequence + " "
-            if compactNewLine is True: # don't add an ending space when a new line
-                separatorSequence = separatorSequence + " "
-        
-        if compactNewLine is False: # new line
-            separatorSequence = separatorSequence + "\n"
-            args.stream.write("\n")
-            if compactIndent is False: # indent the new lines
-                nextElementSequence = args.getIndent(currLineIndent+1)
-                separatorSequence = separatorSequence + nextElementSequence
-                args.stream.write(nextElementSequence)
-
-        for item in obj:
-            # separator
-            if isFirstElt is True: isFirstElt = False
-            else: # => not the first element
-                args.stream.write(separatorSequence)
-            # value
-            __prettyPrint_internal(
-                obj=item, currLineIndent=currLineIndent+1, specificFormats=specificFormats,
-                oldCompactState=currenCompactState, args=args,
-            )
-
-        # ending sequence
-        if compactNewLine is False: # new line
-            args.stream.write("\n")
-            if compactIndent is False: # indent the new line
-                args.stream.write(args.getIndent(currLineIndent))
-        
-        # delimiter close
-        args.stream.write(delimiter.close)
+        __prettyPrint_internal__print_Generic(
+            objItems=obj, isMapping=False,
+            separatorSequence=",", keyToValue_sequence="", printEndingSeparator=False,
+            delimiter=delimiter, currCompactRules=currentCompactRules,
+            printStartingSequence=True, printEndingSeqence=True,
+            currLineIndent=currLineIndent, specificFormats=specificFormats,
+            currenCompactState=currenCompactState, fixedArgs=fixedArgs,
+        )
 
     else: # => default to str print
-        args.stream.write(args.toStringFunc(obj))
+        fixedArgs.stream.write(fixedArgs.toStringFunc(obj))
+
 
 def prettyPrint(
-        obj:"_PrettyPrintable", indentSequence:str=" "*4, compact:"bool|None|PrettyPrint_CompactArgs"=False,
+        obj:"_PrettyPrintable", indentSequence:str=" "*4, compact:"bool|None|PrettyPrint_CompactArgs"=None,
         stream:"TextIO|None"=None, specificFormats:"dict[type[_T], Callable[[_T], str|Any]]|None"=None, end:"str|None"="\n",
         specificCompact:"set[type]|None"=None, _defaultStrFunc:"Callable[[object], str]"=str, startIndent:int=0)->None:
     """/!\\ may not be as optimized as pprint but prettier print\n
@@ -264,7 +332,7 @@ def prettyPrint(
     __prettyPrint_internal(
         obj, currLineIndent=startIndent, specificFormats=specificFormats,
         oldCompactState=startCompactState,
-        args=_PrettyPrint_fixedArgs(
+        fixedArgs=_PrettyPrint_fixedArgs(
             stream=stream, indentSequence=indentSequence, 
             toStringFunc=_defaultStrFunc, compactArgs=compactArgs,
         )
