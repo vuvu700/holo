@@ -4,7 +4,7 @@ from time import perf_counter
 from holo.__typing import (
     Iterable, Callable, Any, Iterable,
     Generic, TypeVar, ContextManager,
-    LiteralString, ParamSpec,
+    LiteralString, ParamSpec, Self,
 )
 
 _P = ParamSpec("_P")
@@ -214,7 +214,7 @@ class SimpleProfiler(ContextManager):
         self.startTime:"float|None" = None
         self.StopTime:"float|None" = None
 
-    def __enter__(self)->"SimpleProfiler":
+    def __enter__(self)->"Self":
         self.StopTime = None
         self.startTime = perf_counter()
         return self
@@ -273,7 +273,7 @@ class DummyProfiler:
     def mesure(self, *_, **__)->"DummyProfiler": return self
     def reset(self, *_, **__)->None: ...
     # for SimpleProfiler (acte as a dummy context too)
-    def __enter__(self)->"DummyProfiler": return self
+    def __enter__(self)->"Self": return self
     def __exit__(self, *_)->None: ...
     def perttyStr(self, *_, **__)->str: return ""
     def wrap(self, func:Callable[_P, _T])->Callable[_P, _T]: return func

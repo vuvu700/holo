@@ -42,6 +42,8 @@ class SupportsNext(Protocol[_T_co]):
 class SupportsAnext(Protocol[_T_co]):
     def __anext__(self) -> "Awaitable[_T_co]": ...
 
+
+
 # Comparison protocols
 
 class SupportsDunderLT(Protocol[_T_contra]):
@@ -62,6 +64,9 @@ class SupportsAllComparisons(
 
 SupportsRichComparison: TypeAlias = Union[SupportsDunderLT[Any], SupportsDunderGT[Any]]
 SupportsRichComparisonT = TypeVar("SupportsRichComparisonT", bound=SupportsRichComparison)
+
+
+
 
 # Dunder protocols
 
@@ -90,6 +95,8 @@ class SupportsDivModRec(Protocol[_T_contra, _T_co]):
         ) -> "tuple[_T_co, SupportsDivModRec[_T_contra, _T_co]]": ...
 
 
+
+
 # This protocol is generic over the iterator type, while Iterable is
 # generic over the type that is iterated over.
 class SupportsIter(Protocol[_T_co]):
@@ -109,6 +116,8 @@ class SupportsLenAndGetItem(Protocol[_T_co]):
 
 class SupportsTrunc(Protocol):
     def __trunc__(self) -> int: ...
+
+
 
 # Mapping-like protocols
 
@@ -130,13 +139,26 @@ class SupportsGetItem(Protocol[_KT_contra, _VT_co]):
 class SupportsItemAccess(SupportsGetItem[_KT_contra, _VT], Protocol[_KT_contra, _VT]):
     def __setitem__(self, __key: _KT_contra, __value: _VT) -> None: ...
     def __delitem__(self, __key: _KT_contra) -> None: ...
-    
+
+@runtime_checkable
+class SupportsReduce(Protocol):
+    def __reduce__(self) -> "str | tuple[Any, ...]":
+        ...
+
 
 
 # files like protocols
 
 class SupportsRead(Protocol[_T_co_Sized]):
     def read(self, __size:"int|None"=...)->_T_co_Sized: ...
+
+class SupportsFileRead(Protocol[_T_co_Sized]):
+    def read(self, __size:"int|None"=...)->_T_co_Sized: ...
+    def seek(self, __offset:int, __whence:int=...,)->_T_co_Sized: ...
+
+class SupportsPickleRead(Protocol):
+    def read(self, __n:int)->bytes: ...
+    def readline(self)->bytes: ...
 
 class SupportsWrite(Protocol[_T_contra_Sized]):
     def write(self, __buffer: _T_contra_Sized) -> int: ...

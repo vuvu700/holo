@@ -6,7 +6,7 @@ from typing import (
     Generator, NamedTuple, Union, overload,
     Callable, Mapping, Sized, cast, NoReturn,
     DefaultDict, Iterator, Type, Container,
-    TYPE_CHECKING, AbstractSet,
+    TYPE_CHECKING, AbstractSet, MutableMapping,
 )
 if sys.version_info < (3, 11):
     from typing_extensions import (
@@ -34,4 +34,3 @@ _PrettyPrintable = Union[
     Sequence["_PrettyPrintable"], AbstractSet["_PrettyPrintable"], # Sequnce likes
     "SupportsStr", str, bytes, # others
 ]
-"""not a protocol but needed for SupportsPretty"""
