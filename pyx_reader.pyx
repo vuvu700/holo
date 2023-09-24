@@ -122,7 +122,7 @@ cdef bint Reader2_startsWithPattern(Reader2 *self, bytes pattern):
     """tell whether the buffer starts with the given pattern\n
     read what is nessecary for it, \
     will not delet anything from the buffer but might expand it\n
-    if returned True, it guarenty reader.buffer starts with the pattern
+        if returned True, it guarenty reader.buffer starts with the pattern
     """
     cdef String patternString = String(<unsigned char*>pattern, len(pattern))
     return Reader2_startsWithPatternString(self, &patternString)
@@ -164,7 +164,37 @@ cdef class ReaderFast:
     cpdef bint skipPatternIf_startsWith(self, bytes pattern):
         return Reader2_skipPatternIf_startsWith(self.reader, pattern)
     
-    cpdef void _bench_skipToPattern(self, bytes pattern):
+    cpdef bytes read(self, _size:"int|None"=None):
+        cdef BytesSlice *buffer = self.reader.buffer
+        cdef bytes bufferContent
+        reader_file:"SupportsRead[bytes]" = <object>self.reader.file
+        if BytesSlice_size(buffer) == 0:
+            # => empty buffer => read directly from the file
+            return reader_file.read(_size)
+        elif (_size is not None) and (_size >= 0):
+            # => read (up to) precise amount
+            # get the value in the buffer
+            bufferContent = BytesSlice_copyTo_bytes2(buffer, 0, _size)
+            BytesSlice_cutStart(buffer, _size) # => empty the buffer when 
+            if len(bufferContent) == _size:
+                # => buffer exactly all => no more read
+                BytesSlice_release(buffer) # fully empty the buffer (optim)
+                return bufferContent
+            # => buffer wasn't enough => concat
+            return bufferContent + reader_file.read(_size - len(bufferContent))
+        # => read to EOF
+        else: 
+            bufferContent = BytesSlice_copyTo_bytes(buffer)
+            BytesSlice_release(buffer) # fully empty the buffer (optim)
+            if self.reader.readEOF is True:
+                # => buffer contained enough
+                return bufferContent
+            # => buffer wasn't enough
+            return bufferContent + reader_file.read()
+    
+
+
+    def _bench_skipToPattern(self, bytes pattern)->None:
         while self.skipToPattern(pattern, stopBefore=<bint>False):
             ...
 

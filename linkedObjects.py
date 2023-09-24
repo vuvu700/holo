@@ -159,6 +159,7 @@ class Stack(LinkedList[_T]):
         self.insert(value)
     
     def endValue(self, *args, **kwargs)->NoReturn:
+        """disabled methode"""
         raise NotImplementedError()
 
 class Queue(LinkedList[_T]):
@@ -168,6 +169,7 @@ class Queue(LinkedList[_T]):
         self.append(value)
     
     def endValue(self, *args, **kwargs)->NoReturn:
+        """disabled methode"""
         raise NotImplementedError()
 
 
@@ -372,6 +374,6 @@ class Cycle(Generic[_T]):
             node = node.next
 
     def __str__(self)->str:
-        return f"{self.__class__.__name__}({' -> '.join(map(str, iter(self)))})"
+        return f"{self.__class__.__name__}({' <-> '.join(map(str, iter(self)))} <->)"
     def __repr__(self)->str:
         return f"{self.__class__.__name__}([{', '.join(map(repr, iter(self)))}])"

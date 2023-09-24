@@ -74,7 +74,9 @@ class StringSlice(Generic[_T_value]):
 
 class Reader(Generic[_T_value]):
     __slots__ = ("file", "readSize", "buffer", "readEOF")
-    def __init__(self, file:"SupportsRead[_T_value]", readSize:"int|Literal['big']|None"=None) -> None:
+    def __init__(self,
+            file:"SupportsRead[_T_value]",
+            readSize:"int|Literal['big']|None"=None)->None:
         self.file:"SupportsRead[_T_value]" = file
         self.readSize:int
         if readSize is None: self.readSize = DEFAULT_BUFFER_SIZE
@@ -92,7 +94,7 @@ class Reader(Generic[_T_value]):
 
 
     def skipToPattern(self,
-            pattern:"_T_value", stopBefore:bool,
+            pattern:"_T_value", *, stopBefore:bool,
             writer:"SupportsWrite[_T_value]|None"=None)->bool:
         
         startOfPattern_index:int; readed_size:int; newStartIndex:int
@@ -215,10 +217,41 @@ class Reader(Generic[_T_value]):
         # else => self.startsWith(pattern) is False
         return False
 
-
-
-
-
+    def read(self, __size:"int|None"=None)->"_T_value":
+        if self.buffer is None:
+            # => self.readEOF is True or not started
+            if self.readEOF is True:
+                return self.file.read(0)
+            # => not started (don't use the buffer (empty))
+            return self.file.read(__size)
+        
+        assert isinstance(self.buffer, StringSlice), \
+            TypeError(f"incorrect type for self.buffer: {self.buffer}")
+        
+        bufferContent:"_T_value"
+        if (__size is not None) and (__size >= 0):
+            # => read (up to) precise amount
+            # get the value in the buffer
+            bufferContent = self.buffer.getValue_cutted(__size)
+            self.buffer.cutStart(__size)
+            if len(bufferContent) >= __size:
+                self.buffer = None # empty the buffer (optim)
+                # => buffer contained enough
+                if len(bufferContent) == __size:
+                    # => got everything needed
+                    return bufferContent
+                # else: read the file too
+            # => buffer wasn't enough => concat
+            return bufferContent + self.file.read(__size - len(bufferContent))
+        # => read to EOF
+        else: 
+            bufferContent = self.buffer.getValue()
+            self.buffer = None # empty the buffer (optim)
+            if self.readEOF is True:
+                # => buffer contained enough
+                return bufferContent
+            # => buffer wasn't enough
+            return bufferContent + self.file.read()
 
 
 
@@ -336,6 +369,7 @@ def benchMulti(readSizes:"list[int|None]", patterns:"list[str|bytes]",
 
 
 if __name__ == "__main__":
+    raise
     benchMulti(
         readSizes=[BIG_READSIZE, None],
         # chance      1e964         1e19        1e16   65536   256
