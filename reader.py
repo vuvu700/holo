@@ -369,7 +369,6 @@ def benchMulti(readSizes:"list[int|None]", patterns:"list[str|bytes]",
 
 
 if __name__ == "__main__":
-    raise
     benchMulti(
         readSizes=[BIG_READSIZE, None],
         # chance      1e964         1e19        1e16   65536   256
