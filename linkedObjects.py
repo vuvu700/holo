@@ -36,6 +36,42 @@ class Node(Generic[_T]):
     def __call__(self)->"_T":
         return self.value
 
+
+class NodeDCycle(Node[_T]):
+    """a subClass of Node that are allways linked, as a double cycle"""
+    def __init__(self, value:"_T", next:"NodeDCycle[_T]|None", prev:"NodeDCycle[_T]|None")->None:
+        """`next` / `prev` setted to None will designate to `self`"""
+        self.value:"_T" = value
+        # bind next
+        self.next:"NodeDCycle[_T]"
+        if next is None: # => link to self
+            self.next = self
+        else: # => link to custom
+            self.next = next
+            next.prev = self
+        # bind prev
+        self.prev:"NodeDCycle[_T]"
+        if prev is None: # => link to self
+            self.prev = self
+        else: # => link to custom
+            self.prev = prev
+            prev.next = self
+
+    def detatche(self)->"NodeDCycle[_T]":
+        """detache the node of its .prev and its .next, and make it loop on itself\n
+        old .prev and .next will be linked toogether according to the initial .prev and .next\n
+        return initial self.next"""
+        # relink prev and next toogether
+        next:"NodeDCycle[_T]"
+        next = self.prev.next = self.next
+        self.next.prev = self.prev
+        # make self loop on itself
+        self.next = self.prev = self
+        return next
+
+
+
+
 class LinkedList(Generic[_T]):
     __slots__ = ("__start", "__end", "__length")
     def __init__(self, __initial:"Iterable[_T]|None"=None) -> None:
@@ -106,6 +142,9 @@ class LinkedList(Generic[_T]):
         """tell whether it is empty"""
         return self.__start is None
     
+    def popAll(self)->"Generator[_T, None, None]":
+        while self.__start is not None:
+            yield self.pop()
 
     @overload
     def startValue(self, ensure:Literal[False])->"_T|None": ...
@@ -179,11 +218,12 @@ class Queue(LinkedList[_T]):
 
 
 
-class Cycle(Generic[_T]):
+class DCycle(Generic[_T]):
+    """double dirrection cycle"""
     __slots__ = ("__current", "__length")
     def __init__(self, __initial:"Iterable[_T]|None"=None) -> None:
         """if `__initial` is given append all its values"""
-        self.__current:"Node[_T]|None" = None
+        self.__current:"NodeDCycle[_T]|None" = None
         self.__length:int = 0
         if __initial is not None:
             for value in __initial:
@@ -193,50 +233,30 @@ class Cycle(Generic[_T]):
         """insert at the start, move the old current to next"""
         if self.__current is None:
             # => empty
-            node = self.__current = Node(value)
-            # create the cycle
-            node.next = node
-            node.prev = node
-            self.__length = 1
+            self.__current = NodeDCycle(value, None, None)
+            # => (itself) <-> (current) <-> (itself)
         else: # => not empty
-            currentNode = self.__current
-            # connect the new node
-            newNode = Node(value, 
-                next=currentNode,
-                # => current(new node) -> next(old current)
-                prev=currentNode.prev,
-                # => prev(old current's prev) <- current(new node)
+            self.__current = NodeDCycle(
+                value, 
+                prev=self.__current.prev, # => (old current's prev) <-> (new current)
+                next=self.__current, # => (new current) <-> (old current)
             )
-            # re-connect the old nodes
-            assert currentNode.prev is not None, \
-                ValueError(f"in a cycle, all links are setted")
-            currentNode.prev.next = newNode 
-            # => prev(old current's prev) -> current(new node)
-            currentNode.prev = newNode
-            # => current(new node) <- next(old current)
-            self.__current = newNode
-            self.__length += 1
+            # => (old current's prev) <-> (new current) <-> (old current)
+        self.__length += 1
 
     def append(self, value:"_T")->None:
         """append at the end, new prev of current"""
         if self.__current is None:
             # => empty
-            node = self.__current = Node(value)
-            # create the cycle
-            node.next = node
-            node.prev = node
-            self.__length = 1
+            self.__current = NodeDCycle(value, None, None)
         else: # => not empty
-            currentNode:"Node[_T]" = self.__current
-            assert currentNode.prev is not None, \
-                ValueError(f"in a cycle, all links are setted")
-            oldPrev:"Node[_T]" = currentNode.prev
-            newPrev:"Node[_T]" = Node(value)
-            # relink
-            newPrev.prev = oldPrev; oldPrev.next = newPrev
-            newPrev.next = currentNode; currentNode.prev = newPrev
-            
-            self.__length += 1
+            self.__current.prev = NodeDCycle(
+                value,
+                prev=self.__current.prev, # => (old current's prev) <-> (new current's prev)
+                next=self.__current, # => (new current's prev) <-> (current)
+            )
+            # => (old current's prev) <-> (new current's prev) <-> (current)
+        self.__length += 1
     
     @overload
     def pop(self, ensure:Literal[False])->"_T|None": ...
@@ -254,29 +274,20 @@ class Cycle(Generic[_T]):
         currentNode:"Node[_T]" = self.__current
         poppedValue:"_T" = currentNode.value
         if self.__length == 1:
-            # relinking a 1 node cycle relink to itself
+            # detatching a 1 node cycle relink to itself
             self.__current = None
             self.__length = 0
             return poppedValue 
         
-        # length => 1
-        assert currentNode.next is not None, \
-            ValueError(f"in a cycle, all links are setted")
-        newCurrent:"Node[_T]" = currentNode.next
-        assert currentNode.prev is not None, \
-            ValueError(f"in a cycle, all links are setted")
-        prev:"Node[_T]" = currentNode.prev
-
-        # relink
-        newCurrent.prev = prev # prev(old current's prev) <- current(old next)
-        prev.next = newCurrent # prev(old current's prev) -> current(old next)
-        self.__current = newCurrent
-        
-        # unlink
-        currentNode.next = currentNode.prev = None
+        # length > 1 => current.next is not current
+        self.__current = self.__current.detatche()        
         self.__length -= 1
         
         return poppedValue
+
+    def popAll(self)->"Generator[_T, None, None]":
+        while self.__current is not None:
+            yield self.pop()
 
     @overload
     def currentValue(self, ensure:Literal[False])->"_T|None": ...
@@ -350,8 +361,6 @@ class Cycle(Generic[_T]):
         # => not empty
         # execute the moves
         for _ in range(abs(moves)):
-            assert self.__current is not None, \
-                ValueError(f"in a cycle, all links are setted")
             if direction: # don't use "is True" for a little perf gain
                 self.__current = self.__current.next
             else: self.__current = self.__current.prev
@@ -364,12 +373,8 @@ class Cycle(Generic[_T]):
         # => not empty
         startNode:"Node[_T]" = self.__current
         yield startNode.value
-        assert startNode.next is not None, \
-            ValueError(f"in a cycle, all links are setted")
         node:"Node[_T]" = startNode.next
         while (node is not startNode):
-            assert node.next is not None, \
-                ValueError(f"in a cycle, all links are setted")
             yield node.value
             node = node.next
 
