@@ -4,8 +4,8 @@ from collections.abc import (
 )
 from holo.__typing import (
     Protocol, TypeVar, Any, TypeAlias, Union, runtime_checkable,
-    Mapping, Sequence, NamedTuple, TYPE_CHECKING, overload,
-    _PrettyPrintable,
+    Mapping, Sequence, NamedTuple, TYPE_CHECKING, overload, Self,
+    _PrettyPrintable, TracebackType, Callable, Concatenate,
 )
 
 if TYPE_CHECKING:
@@ -42,6 +42,10 @@ class SupportsNext(Protocol[_T_co]):
 class SupportsAnext(Protocol[_T_co]):
     def __anext__(self) -> "Awaitable[_T_co]": ...
 
+@runtime_checkable
+class SupportsContext(Protocol):
+    def __enter__(self)->Self: ...
+    __exit__:"Callable[Concatenate[Self, ...], None]"
 
 
 # Comparison protocols
@@ -152,17 +156,22 @@ class SupportsReduce(Protocol):
 class SupportsRead(Protocol[_T_co_Sized]):
     def read(self, __size:"int|None"=...)->_T_co_Sized: ...
 
-class SupportsFileRead(Protocol[_T_co_Sized]):
+class SupportsFileRead(SupportsContext, Protocol[_T_co_Sized]):
     def read(self, __size:"int|None"=...)->_T_co_Sized: ...
     def seek(self, __offset:int, __whence:int=...,)->_T_co_Sized: ...
+    def close(self)->None: ...
 
-class SupportsPickleRead(Protocol):
+class SupportsPickleRead(SupportsContext, Protocol):
     def read(self, __n:int)->bytes: ...
     def readline(self)->bytes: ...
+    def close(self)->None: ...
 
 class SupportsWrite(Protocol[_T_contra_Sized]):
     def write(self, __buffer: _T_contra_Sized) -> int: ...
 
+class SupportsFileWrite(SupportsContext, Protocol[_T_contra_Sized]):
+    def write(self, __buffer: _T_contra_Sized) -> int: ...
+    def close(self)->None: ...
 
 
 # pretty format protocols

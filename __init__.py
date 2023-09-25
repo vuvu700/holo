@@ -314,3 +314,28 @@ def prettyfyNamedTuple(cls:"type[_T_NamedTuple]")->"type[_T_NamedTuple]":
         return _ObjectRepr(self.__class__.__name__, (), self._asdict())
     setattr(cls, "__pretty__", __pretty__) 
     return cls
+
+
+def rawInput(__size:int)->bytes:
+    try: import msvcrt
+    except: raise ImportError(f"currently only available for windows")
+    if __size == 0:
+        return b""
+    # => using a buffer like that gives you concat with up to 256 long bytes
+    #   and only ~ x1.2 more memory than simple bytes (for large sizes)
+    BLOCKS_SIZE = 256
+    buffers:"list[bytes]" = [b""]
+    trueSize:int = 0
+    while (__size is None) or (trueSize < __size):
+        char:bytes = msvcrt.getch()
+        if char == b'\x03': # => ctrl + C
+            raise KeyboardInterrupt
+        else: # append the char
+            msvcrt.putch(char)
+            lastBuffer:bytes = buffers[-1]
+            if len(lastBuffer) < BLOCKS_SIZE:
+                buffers[-1] = lastBuffer + char
+            else: buffers.append(char)
+            trueSize += 1
+    msvcrt.putch(b"\n")
+    return b"".join(buffers)

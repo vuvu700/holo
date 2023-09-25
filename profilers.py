@@ -5,6 +5,7 @@ from holo.__typing import (
     Iterable, Callable, Any, Iterable,
     Generic, TypeVar, ContextManager,
     LiteralString, ParamSpec, Self,
+    TypeGuard, Literal,
 )
 
 _P = ParamSpec("_P")
@@ -237,7 +238,8 @@ class Profiler(Generic[_T_Categorie]):
             newProfiler._totalMesure[categorie] = totalMesure
         return newProfiler
         
-
+    def isCategorie(self, categorie:str)->"TypeGuard[_T_Categorie]":
+        return categorie in self._mesures.keys()
 
 class SimpleProfiler(ContextManager):
     """a simple profiler that hold a single mesure"""
@@ -307,6 +309,7 @@ class DummyProfiler:
     def mesure(self, *_, **__)->"DummyProfiler": return self
     def reset(self, *_, **__)->None: ...
     def copy(self, *_, **__)->"DummyProfiler": return DummyProfiler()
+    def isCategorie(self, *_, **__:str)->"Literal[True]": return True
     # for SimpleProfiler (acte as a dummy context too)
     def __enter__(self)->"Self": return self
     def __exit__(self, *_)->None: ...

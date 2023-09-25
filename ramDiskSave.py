@@ -10,12 +10,13 @@ import pickle
 
 
 from holo.__typing import (
-    Any, Generic, Iterator, TypeVar, Generator,
-    Self, MutableMapping, Iterable,
-    Literal, overload, TypeAlias, TYPE_CHECKING,
+    Generic, Iterator, TypeVar, Generator,
+    Self, MutableMapping, Iterable, Tuple,
+    LiteralString, Literal, overload, TypeAlias,
+    TYPE_CHECKING, Dict,
 )
 from holo.protocols import (
-    SupportsWrite, SupportsFileRead, 
+    SupportsFileWrite, SupportsFileRead, 
     SupportsPickleRead,
     SupportsReduce, _KT, _T, 
 )
@@ -50,7 +51,7 @@ class _Unsetted():
 
 _Verbose = Literal[0, 1, 2, 3]
 
-_CompressionLib = Literal["lz4", "lzma", "bz2", "bzip2", "lzo", "blosc", "zlib"]
+_CompressionLib = Literal["lz4", "lzma", "bz2", "bzip2", "lzo", "blosc", "zlib", "blosc:lz4"]
 """some _CompressionLib are only usable certain _SaveLib"""
 
 _StandardMethodes = Literal[
@@ -68,8 +69,9 @@ _StandardMethodes = Literal[
 ]
 
 _SaveLib = Literal["pickle", "numpy", "pandas", "joblib"]
+_SaveLibExt = Literal["__other__", "pickle", "numpy", "pandas", "joblib"]
 
-_CustomMethodes:TypeAlias = "dict[type, _SaveLib]"
+_CustomMethodes:TypeAlias = Dict[type, _SaveLib]
 """you give a map asscociating types to a certain lib\n
 the objects that will be saved will use the lib of the most narrowed matching type:\n
 when given {object:lib1, int:lib2, <subclass 'A' of int>:lib3}: \n
@@ -81,6 +83,10 @@ ex: when given {str:lib1, int:lib2}, \
     and an instance of 'str' and 'int', it migth coose one or the other
 """
 
+_CompressionTuple = Tuple[_CompressionLib, int]
+
+_CustomCompression:TypeAlias = "dict[_SaveLibExt|tuple[_SaveLib, type], _CompressionTuple]"
+
 ### consts
 
 SESSION_UPDATE_AFTER:int = 1*60 # update the session every 1min
@@ -91,12 +97,13 @@ SAVEMODULE_DIRECTORY:Path = Path(os.environ["TEMP"]).joinpath(".SaveModule/")
 
 CONST_PANDAS_HDF_KEY = "DF"
 
-ALLOWED_CompressionLibs:"dict[_SaveLib|Literal['__other__'], set[_CompressionLib]]" = {
+ALLOWED_CompressionLibs:"dict[_SaveLibExt, set[_CompressionLib]]" = {
     "__other__": {"lz4", "bz2", "bzip2", "lzma"},
-    "pandas": {"lzo", "bzip2", "blosc", "zlib"},
+    "pandas": {"blosc:lz4", "lzo", "bzip2", "blosc", "zlib"},
 }
 
 _unsetted = _Unsetted() # create its unique instance
+
 
 ### general funcs
 
@@ -108,23 +115,23 @@ def cleanFile_if_exist(filePath:str)->None:
     if os.path.lexists(filePath) is True:
         os.remove(filePath)
 
-SESSION_UPDATE_AFTER:int = 5 # update the session every 1min
-SESSION_DELETE_AFTER:int = 30 # NOTE: /!\ an un-updated session for 5min is deleted
 ### Session definition
 
 class SessionsCleaner(threading.Thread):
     def __init__(self, start:bool=False) -> None:
         super().__init__(daemon=True)
         self.__paused:bool = False
+        # TODO: sys d'historique des acctions
+        # => no print mais quand meme accesible
         if start is True:
             self.start()
     
     def clean_old_sessions(self, directorys:"list[Path]")->None:
         for directory in (directorys + [SAVEMODULE_DIRECTORY]):
             for sessionDirPath in directory.iterdir():
-                print(f"treating: {sessionDirPath.as_posix()} ...", end=None)
+                #print(f"treating: {sessionDirPath.as_posix()} ...", end=None)
                 if sessionDirPath.is_dir() is False:
-                    print(f" => not a dir")
+                    #print(f" => not a dir")
                     continue # => not a dir => not a session
                 
                 # try to get the session's file
@@ -132,19 +139,19 @@ class SessionsCleaner(threading.Thread):
                     with open(sessionDirPath.joinpath(FILENAME_SESSION_INFOS), mode='r') as sessionFile:
                         sessionFile_content = sessionFile.read()
                 except PermissionError:
-                    print(f" => PermissionError")
+                    #print(f" => PermissionError")
                     continue # => file is being accessed => session is running
                 except FileNotFoundError:
-                    print(f" => FileNotFoundError")
+                    #print(f" => FileNotFoundError")
                     continue # => no session file => not a session or not yet created
                 
                 # read the session's file
                 sessionLastUpdate:float = float(sessionFile_content)
                 if (time.time() - sessionLastUpdate) > SESSION_DELETE_AFTER:
-                    print(f" => cleaning it")
+                    #print(f" => cleaning it")
                     # => session is too old => delete it
                     for sessionsFiles in sessionDirPath.iterdir():
-                        print(f" -> removing {sessionsFiles.name}")
+                        #print(f" -> removing {sessionsFiles.name}")
                         os.remove(sessionsFiles)
                     sessionDirPath.rmdir()
                 else: # => not old enough to be deleted
@@ -160,20 +167,16 @@ class SessionsCleaner(threading.Thread):
         self.__paused = False
     
     def run(self)->None:
-        print("here 1")
         while True:
-            print("here 2")
             try:
                 while self.__paused is True:
                     print("here paused")
                     time.sleep(0.1) # => sleep a few moments
                 
-                print("here 3")
                 # => update each session
                 sessionsHolderDirs:"list[Path]" = []
                 session:"Session|None"
                 for sessionRef in Session.sessionsHierarchy:
-                    print("here 3.1")
                     session = sessionRef()
                     if (session is None) or (session.wasCleaned is True):
                         continue # => session is dead
@@ -181,14 +184,11 @@ class SessionsCleaner(threading.Thread):
                     session.update_session()
                     session.clean_forgoten_objects()
                     sessionsHolderDirs.append(session.directory.parent)
-                    print("here 3.2")
                 self.clean_old_sessions(sessionsHolderDirs)
                 del sessionsHolderDirs
-                print("here 4")
                 time.sleep(SESSION_UPDATE_AFTER) # update every
 
             except Exception as err:
-                print("here 5")
                 # => don't stop on errors
                 print("an error happened durring update")
                 print_exception(err)
@@ -429,46 +429,69 @@ class Session():
 
 class SaveArgs():
     def __init__(self,
-            compression:"tuple[_CompressionLib, int]|None"=None,
+            compression:"_CompressionTuple|_CustomCompression|None"=None,
             methode:"_StandardMethodes|_CustomMethodes"="allwaysPickle")->None:
-        self.compression:"tuple[_CompressionLib, int]|None" = compression
+        self.compression:"_CompressionTuple|_CustomCompression|None" = compression
         self.methode:"_CustomMethodes" = SaveArgs._stdMethode_to_custom(methode)
         self._preImport_compLib()
     
-    @property
-    def compressionLevel(self)->"int|None":
+    def getCompressionTuple(self, objectType:type, useLib:"_SaveLib|None"=None)->"_CompressionTuple|None":
         if self.compression is None:
             return None
-        return self.compression[1]
-
-    @property
-    def compressionLib(self)->"_CompressionLib|None":
-        if self.compression is None:
-            return None
-        return self.compression[0]
+        elif isinstance(self.compression, tuple):
+            return self.compression
+        # => custom
+        if useLib is None: # => auto
+            useLib = self.getSaveLib(objectType)
+        # => useLib is defined
+        narrowestType:"type|None" = None
+        narrowestCompTuple:"_CompressionTuple|None" = None
+        fromOther:bool = False
+        for saveLib, compTuple in self.compression.items():
+            if isinstance(saveLib, tuple):
+                # => custom compTuple
+                (saveLib, keyType) = saveLib
+                if (saveLib == useLib) and issubclass(objectType, keyType) \
+                        and ((narrowestType is None) or issubclass(keyType, narrowestType)):
+                    # => correct saveLib, correct type, narrower
+                    narrowestType = keyType
+                    narrowestCompTuple = compTuple
+            else: # => generic compTuple
+                if ((saveLib == useLib) and ((narrowestCompTuple is None) or (fromOther is True))) \
+                        or ((saveLib == "__other__") and (fromOther is False)): 
+                    # => correct saveLib, not setted yet => set the default
+                    fromOther = (saveLib == "__other__")
+                    narrowestCompTuple = compTuple
+        #print(f"{objectType} -> {narrowestCompTuple}")
+        return narrowestCompTuple
+    
 
     def save(self, filePath:Path, obj:object)->None:
         useLib:"_SaveLib" = self.getSaveLib(type(obj))
-        fileNormal:"SupportsWrite[bytes]"
-        fileHdf:"pandas.HDFStore"
+        fileNormal:"SupportsFileWrite[bytes]"
+        fileHdf:"pandas.HDFStore" # TODO: use with insted of .close()
+        objectType:type = type(obj)
         if useLib == "pickle":
-            fileNormal = self.getFile(filePath, useLib, 'w')
-            pickle.dump(obj=obj, file=fileNormal, protocol=-1)
+            with self.getFile(filePath, objectType, useLib, 'w') as fileNormal:
+                pickle.dump(obj=obj, file=fileNormal, protocol=-1)
+            fileNormal.close()
         elif useLib == "numpy":
             import numpy
-            fileNormal = self.getFile(filePath, useLib, 'w')
-            numpy.save(arr=obj, file=fileNormal, allow_pickle=True)
+            with self.getFile(filePath, objectType, useLib, 'w') as fileNormal:
+                numpy.save(arr=obj, file=fileNormal, allow_pickle=True)
+            fileNormal.close()
         elif useLib == "pandas":
             import pandas
-            fileHdf = self.getFile(filePath, useLib, 'w')
-            assert isinstance(obj, pandas.DataFrame), \
-                TypeError(f"in order to save an object with lib: {useLib}"
-                          f"the object needs to be an instance of {pandas.DataFrame}")
-            obj.to_hdf(fileHdf, CONST_PANDAS_HDF_KEY)
+            with self.getFile(filePath, objectType, useLib, 'w') as fileHdf:
+                assert isinstance(obj, pandas.DataFrame), \
+                    TypeError(f"in order to save an object with lib: {useLib}"
+                            f"the object needs to be an instance of {pandas.DataFrame}")
+                obj.to_hdf(fileHdf, CONST_PANDAS_HDF_KEY)
         elif useLib == "joblib":
             import joblib
-            fileNormal = self.getFile(filePath, useLib, 'w')
-            joblib.dump(obj, fileNormal, protocol=-1)
+            with self.getFile(filePath, objectType, useLib, 'w') as fileNormal:
+                joblib.dump(obj, fileNormal, protocol=-1)
+            fileNormal.close()
         else: raise ValueError(f"the lib: {useLib} isn't supported")
         # => saved the object
         
@@ -478,20 +501,20 @@ class SaveArgs():
         filePickle:"SupportsPickleRead"
         fileHdf:"pandas.HDFStore"
         if useLib == "pickle":
-            filePickle = self.getFile(filePath, useLib, 'r')
-            obj = pickle.load(file=filePickle)
+            with self.getFile(filePath, objectType, useLib, 'r') as filePickle:
+                obj = pickle.load(file=filePickle)
         elif useLib == "numpy":
             import numpy
-            fileNormal = self.getFile(filePath, useLib, 'r')
-            obj = numpy.load(file=fileNormal, allow_pickle=True)
+            with self.getFile(filePath, objectType, useLib, 'r') as fileNormal:
+                obj = numpy.load(file=fileNormal, allow_pickle=True)
         elif useLib == "pandas":
             import pandas
-            fileHdf = self.getFile(filePath, useLib, 'r')
-            obj = pandas.read_hdf(fileHdf, CONST_PANDAS_HDF_KEY)
+            with self.getFile(filePath, objectType, useLib, 'r') as fileHdf:
+                obj = pandas.read_hdf(fileHdf, CONST_PANDAS_HDF_KEY)
         elif useLib == "joblib":
             import joblib
-            fileNormal = self.getFile(filePath, useLib, 'r')
-            obj = joblib.load(fileNormal)
+            with self.getFile(filePath, objectType, useLib, 'r') as fileNormal:
+                obj = joblib.load(fileNormal)
         else: raise ValueError(f"the lib: {useLib} isn't supported")
         # => loaded the object, checking asserting its type
         assert isinstance(obj, objectType), \
@@ -513,19 +536,28 @@ class SaveArgs():
         return selectedLib
     
     @overload
-    def getFile(self, filePath:Path, saveLib:"Literal['pandas']", mode:"Literal['r','w']")->"pandas.HDFStore": ...
-    @overload
-    def getFile(self, filePath:Path, saveLib:"Literal['pickle']", mode:"Literal['r']")->"SupportsPickleRead": ...
-    @overload
-    def getFile(self, filePath:Path, saveLib:"_SaveLib", mode:"Literal['r']")->"SupportsFileRead[bytes]": ...
-    @overload
-    def getFile(self, filePath:Path, saveLib:"_SaveLib", mode:"Literal['w']")->"SupportsWrite[bytes]": ...
     def getFile(self, 
-            filePath:Path, saveLib:"_SaveLib", mode:"Literal['r', 'w']",
-            )->"SupportsWrite[bytes]|SupportsFileRead[bytes]|pandas.HDFStore|SupportsPickleRead":
+            filePath:Path, objectType:type, saveLib:"Literal['pandas']",
+            mode:"Literal['r','w']")->"pandas.HDFStore": ...
+    @overload
+    def getFile(self, 
+            filePath:Path, objectType:type, saveLib:"Literal['pickle']",
+            mode:"Literal['r']")->"SupportsPickleRead": ...
+    @overload
+    def getFile(self, 
+            filePath:Path, objectType:type, saveLib:"_SaveLib",
+            mode:"Literal['r']")->"SupportsFileRead[bytes]": ...
+    @overload
+    def getFile(self, 
+            filePath:Path, objectType:type, saveLib:"_SaveLib",
+            mode:"Literal['w']")->"SupportsFileWrite[bytes]": ...
+    def getFile(self, 
+            filePath:Path, objectType:type, saveLib:"_SaveLib", mode:"Literal['r', 'w']",
+            )->"SupportsFileWrite[bytes]|SupportsFileRead[bytes]|pandas.HDFStore|SupportsPickleRead":
         """not overloaded version"""
-        compLib:"_CompressionLib|None" = self.compressionLib
-        compLevel:"int|None" = self.compressionLevel
+        compTuple = self.getCompressionTuple(objectType, useLib=saveLib)
+        compLib:"_CompressionLib|None" = (None if compTuple is None else compTuple[0])
+        compLevel:"int|None" = (None if compTuple is None else compTuple[1])
         self._assert_allowed_compLib(saveLib, compLib)
         
         if saveLib == "pandas":
@@ -555,7 +587,7 @@ class SaveArgs():
             else: raise ValueError(f"unsupported compLib: {compLib} with the saveLib: {saveLib}")
         
         # => uncompressed file
-        return open(filePath, mode=(mode+'b')) 
+        return open(filePath, mode=(mode+'b'))
     
     @classmethod
     def _assert_allowed_compLib(cls, saveLib:"_SaveLib", compLib:"_CompressionLib|None")->None:
@@ -594,14 +626,26 @@ class SaveArgs():
                     pandas.DataFrame:"pandas"}
             
         else: raise ValueError(f"standard methode: {repr(methode)} isn't supported")
-
+    
+    def getAllCompLibs(self)->"list[_CompressionLib]":
+        if self.compression is None:
+            return []
+        elif isinstance(self.compression, tuple):
+            return [self.compression[0]]
+        # => custom
+        result:"list[_CompressionLib]" = []
+        for (compLib, _) in self.compression.values():
+            result.append(compLib)
+        return result
+    
+    def getAllSaveLibs(self)->"list[_SaveLib]":
+        return list(self.methode.values())
+    
     def _preImport_compLib(self)->None:
-        compLib:"_CompressionLib|None" = self.compressionLib
-        if compLib is None: 
-            return
-        if compLib in ("bz2", "bzip2", "lz4", "lzma"):
-            __import__(compLib)
-        # => other libs don't need pre import
+        for compLib in self.getAllCompLibs():
+            if compLib in ("bz2", "bzip2", "lz4", "lzma"):
+                __import__(compLib)
+            # => other libs don't need pre import
 
 
 
@@ -617,8 +661,8 @@ class ObjectSaver(Generic[_T_Savable]):
     _Filename_prefix = "__SaveModuleFile_"
     
     def __init__(self, 
-            value:"_T_Savable", saveCompressed:bool=False, 
-            session:"Session|None"=None, savingArgs:"SaveArgs|None"=None) -> None:
+            value:"_T_Savable", session:"Session|None"=None,
+            savingArgs:"SaveArgs|None"=None)->None:
         self.__value:"_T_Savable|_Unsetted" = value
         self.__type:"type[_T_Savable]" = type(self.__value)
         self.__saveState:bool = False
@@ -746,18 +790,24 @@ class ObjectSaver(Generic[_T_Savable]):
         self.clean(_force=True)
         self.__session.untrack_object(self)
 
-
+    def fileSize(self)->"int|None":
+        """when saved return the size of the file, when not saved return None"""
+        if self.__saveState is True:
+            # => is saved
+            return os.path.getsize(self.filePath)
+        # => not saved
+        return None
+    
+    def getSaveLib(self)->"_SaveLib":
+        return self.__savingArgs.getSaveLib(self.__type)
+    
 
 ### DictSaver definition
 
 
 class DictSaver(MutableMapping, Generic[_KT, _T_Savable]):
-    def __init__(self,
-            __map:"MutableMapping[_KT, _T_Savable]",
-            saveCompressed:bool=False, session:"Session|None"=None)->None:
-        
+    def __init__(self, __map:"MutableMapping[_KT, _T_Savable]", session:"Session|None"=None)->None:
         self.__map:"MutableMapping[_KT, ObjectSaver[_T_Savable]]" = {}
-        self.__saveCompressed:bool = saveCompressed
         self.__session:Session = (Session.get_topSession() if session is None else session)
         
         for (key, value) in __map.items():
@@ -768,8 +818,7 @@ class DictSaver(MutableMapping, Generic[_KT, _T_Savable]):
     def __setitem__(self, __key:"_KT", __value:"_T_Savable")->None:
         if __key not in self.__map:
             self.__map[__key] = ObjectSaver(
-                __value, saveCompressed=self.__saveCompressed,
-                session=self.__session)
+                __value, session=self.__session)
         else: # => set the new value
             self.__map[__key].setValue(__value)
     
@@ -845,3 +894,175 @@ class DictSaver(MutableMapping, Generic[_KT, _T_Savable]):
         for key in _keys:
             self.__map[key].load()
 
+    def getAllFileSize(self)->"dict[_KT, int]":
+        """return the size of all the objects that are saved"""
+        result:"dict[_KT, int]" = {}
+        for (key,  objSaver) in self.__map.items():
+            fileSize = objSaver.fileSize()
+            if fileSize is not None:
+                result[key] = fileSize
+        return result
+
+    def getAllSaveLibs(self)->"dict[_KT, _SaveLib]":
+        """return the size of all the objects that are saved"""
+        result:"dict[_KT, _SaveLib]" = {}
+        for (key,  objSaver) in self.__map.items():
+            result[key] = objSaver.getSaveLib()
+        return result
+
+
+
+
+
+
+
+def benchMethode(
+        directory:"Path|None"=None, nbPasses:int=1, 
+        compressTuple:"_CompressionTuple|_CustomCompression|None"=None)->None:
+    t0 = time.perf_counter()
+    import numpy, joblib, pandas
+    import lzma, lz4, bz2, zlib
+    t1 = time.perf_counter()
+    if (t1 - t0) > 0.25:
+        print("imports done")
+    del t0, t1
+    
+    from holo.profilers import Profiler
+    from holo.prettyFormats import prettyPrint, prettyTime, prettyDataSizeOctes
+    import random
+    
+    def prettyProfTimes(prof:Profiler)->None:
+        prettyPrint(prof.avgTimes(), specificFormats={float: prettyTime})
+    
+    profGeneral = Profiler([
+        "create obj1", "create obj2", "create obj3",
+    ])
+    
+    profMethodeObj1 = Profiler([
+        "allwaysPickle (save)", "allwaysPickle (load)",
+        "pickle|numpy|pandas (save)", "pickle|numpy|pandas (load)",
+        "allwaysJoblib (save)", "allwaysJoblib (load)",
+        "pickle|joblib (save)", "pickle|joblib (load)",
+    ])
+    profMethodeObj1_dict = profMethodeObj1.copy()
+    profMethodeObj2 = profMethodeObj1.copy()
+    profMethodeObj2_dict = profMethodeObj1.copy()
+    profMethodeObj3 = profMethodeObj1.copy()
+    
+    filesSizes:"dict[LiteralString, dict[_StandardMethodes, int|None]]" = {
+        "obj1":{}, "obj2":{}, "obj3":{}, "obj1_dict":{}, "obj2_dict":{}}
+    objsSaveLibs:"dict[LiteralString, dict[_StandardMethodes, _SaveLib]]" = {
+        "obj1":{}, "obj2":{}, "obj3":{}, "obj1_dict":{}, "obj2_dict":{}}
+    
+    def firstVal(__v:"dict[str, _T]")->"_T":
+        return next(iter(__v.values()))
+    N:int = 10_000
+    
+    def badNumpyRandomArray(shape:"tuple[int, ...]")->numpy.ndarray:
+        rawArray = numpy.random.randint(low=0, high=2**64-1, size=shape, dtype="uint64")
+        rawArray = rawArray % (2 ** 32)
+        return numpy.ndarray(shape, dtype="float16", buffer=rawArray)
+    
+    with profGeneral.mesure("create obj1"):
+        obj1:"dict[str, numpy.ndarray]" = {
+            "X": badNumpyRandomArray((N, 50, 50)),
+            "Y": badNumpyRandomArray((N, 1, 50)),
+        }
+    
+    with profGeneral.mesure("create obj2"):
+        obj2:"dict[str, pandas.DataFrame]" = {
+            f"df n°{i}": pandas.DataFrame({
+                    f"col n°{i}": \
+                        badNumpyRandomArray((N, ))
+                    for i in range(80)
+                })
+            for i in range(15)
+        }
+    
+    with profGeneral.mesure("create obj3"):
+        obj3:"list[tuple[bool, int]]" = [
+            (bool(random.randint(0, 1)), random.randint(0, 2**32))
+            for _ in range(N)
+        ]
+    for methode in ("allwaysPickle", "pickle|numpy|pandas", "allwaysJoblib"):
+        with Session(savingArgs=SaveArgs(methode=methode, compression=compressTuple)):
+            categorie_save = f"{methode} (save)"
+            categorie_load = f"{methode} (load)"
+            assert profMethodeObj1.isCategorie(categorie_save)
+            assert profMethodeObj1.isCategorie(categorie_load)
+            
+            for _ in range(nbPasses):
+                # obj1
+                saveObj1 = ObjectSaver(obj1)
+                with profMethodeObj1.mesure(categorie_save):
+                    saveObj1.save()
+                filesSizes["obj1"][methode] = saveObj1.fileSize()
+                objsSaveLibs["obj1"][methode] = saveObj1.getSaveLib()
+                with profMethodeObj1.mesure(categorie_load):
+                    saveObj1.load()
+                del saveObj1
+                saveDict1 = DictSaver(obj1)
+                with profMethodeObj1_dict.mesure(categorie_save):
+                    saveDict1.save()
+                filesSizes["obj1_dict"][methode] = sum(saveDict1.getAllFileSize().values())
+                objsSaveLibs["obj1_dict"][methode] = firstVal(saveDict1.getAllSaveLibs())
+                with profMethodeObj1_dict.mesure(categorie_load):
+                    saveDict1.load()
+                del saveDict1
+                
+                # obj2
+                saveObj2 = ObjectSaver(obj2)
+                with profMethodeObj2.mesure(categorie_save):
+                    saveObj2.save()
+                filesSizes["obj2"][methode] = saveObj2.fileSize()
+                objsSaveLibs["obj2"][methode] = saveObj2.getSaveLib()
+                with profMethodeObj2.mesure(categorie_load):
+                    saveObj2.load()
+                del saveObj2
+                saveDict2 = DictSaver(obj2)
+                with profMethodeObj2_dict.mesure(categorie_save):
+                    saveDict2.save()
+                filesSizes["obj2_dict"][methode] = sum(saveDict2.getAllFileSize().values())
+                objsSaveLibs["obj2_dict"][methode] = firstVal(saveDict2.getAllSaveLibs())
+                with profMethodeObj2_dict.mesure(categorie_load):
+                    saveDict2.load()
+                del saveDict2
+
+                # obj3
+                saveObj3 = ObjectSaver(obj3)
+                with profMethodeObj3.mesure(categorie_save):
+                    saveObj3.save()
+                filesSizes["obj3"][methode] = saveObj3.fileSize()
+                objsSaveLibs["obj3"][methode] = saveObj3.getSaveLib()
+                with profMethodeObj3.mesure(categorie_load):
+                    saveObj3.load()
+                del saveObj3
+    
+    print("general: ")
+    prettyProfTimes(profGeneral)
+    print()
+    print("obj1 (ObjectSaver)")
+    prettyProfTimes(profMethodeObj1)
+    print()
+    print("obj1 (DictSaver)")
+    prettyProfTimes(profMethodeObj1_dict)
+    print()
+    print("obj2 (ObjectSaver)")
+    prettyProfTimes(profMethodeObj2)
+    print()
+    print("obj2 (DictSaver)")
+    prettyProfTimes(profMethodeObj2_dict)
+    print()
+    print("obj3 (ObjectSaver)")
+    prettyProfTimes(profMethodeObj3)
+    print()
+    print("files sizes")
+    prettyPrint(filesSizes, specificFormats={int: lambda a: prettyDataSizeOctes(a)})
+    print()
+    print("saves lib")
+    prettyPrint(objsSaveLibs)
+
+#benchMethode(nbPasses=1, compressTuple=None)
+#benchMethode(nbPasses=1, compressTuple={"__other__":("lz4", 0), "pandas":("blosc", 0)})
+#benchMethode(nbPasses=1, compressTuple={"__other__":("lz4", 3), "pandas":("blosc", 3)})
+#benchMethode(nbPasses=1, compressTuple={"__other__":("lz4", 9), "pandas":("blosc", 9)})

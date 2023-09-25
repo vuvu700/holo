@@ -431,3 +431,10 @@ def get_prettyDataSizeBytes_Formater(dataSizeScale:"Literal['Kb', 'Mb', 'Gb', 'T
         "Gb": lambda nbOctes: f"{round(nbOctes/1e9, 3)} Gb",
         "Tb": lambda nbOctes: f"{round(nbOctes/1e12, 3)} Tb",
     }[dataSizeScale]
+
+
+
+def indent(text:str, nbIndents:int=1, indentSequence:str=" "*4)->str:
+    fullIndentSequence = indentSequence * nbIndents
+    return f"{fullIndentSequence}{(fullIndentSequence).join(text.splitlines(keepends=True))}"
+    
