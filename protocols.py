@@ -1,6 +1,6 @@
 from collections.abc import (
     Awaitable, Iterable, Set as AbstractSet, 
-    Sized, Container, Iterator, Collection
+    Sized, Container, Iterator, Collection,
 )
 from holo.__typing import (
     Protocol, TypeVar, Any, TypeAlias, Union, runtime_checkable,
@@ -121,7 +121,9 @@ class SupportsLenAndGetItem(Protocol[_T_co]):
 class SupportsTrunc(Protocol):
     def __trunc__(self) -> int: ...
 
-
+@runtime_checkable
+class SupportsIndex(Protocol):
+    def __index__(self) -> int: ...
 
 # Mapping-like protocols
 

@@ -8,7 +8,7 @@ from typing import (
     Callable, Mapping, Sized, cast, NoReturn,
     DefaultDict, Iterator, Type, Container,
     TYPE_CHECKING, AbstractSet, MutableMapping,
-    Tuple, List, Dict, Set, 
+    Tuple, List, Dict, Set, MutableSequence,
 )
 if sys.version_info < (3, 11):
     from typing_extensions import (
