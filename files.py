@@ -3,6 +3,7 @@ import shutil
 from pathlib import Path
 from io import StringIO as _StringIO, DEFAULT_BUFFER_SIZE
 import random as _random
+import re
 
 from holo.__typing import (
     Literal, NamedTuple, Generator, Callable,
@@ -57,7 +58,8 @@ def getSize(path:str, endswith:"str|None"=None, maxDepth:int=-1, checkPermission
 
 def getFilesInfos(
         directory:Path, maxDepth:"int|None"=None, checkPermission:bool=True, 
-        ordered:"bool|Callable[[os.DirEntry], SupportsRichComparison]"=False)->"Generator[os.DirEntry, None, None]":
+        ordered:"bool|Callable[[os.DirEntry[str]], SupportsRichComparison]"=False,
+        filePattern:"str|re.Pattern[str]|None"=None)->"Generator[os.DirEntry, None, None]":
     """create a generator that reccursively yield the infos about the files\n
     `directory` : Path, where to search\n
     `maxDepth` : int|None, the maximum reccursive depth allowed, \
@@ -72,6 +74,10 @@ def getFilesInfos(
     if maxDepth is None: nextDepth = None
     elif (maxDepth < 0): return # max depth reached
     else: nextDepth = maxDepth-1
+    
+    # compile the filePattern
+    if isinstance(filePattern, str):
+        filePattern = re.compile(filePattern)
     
     # try determine the elements in the targeted directory
     try: allElements:"Iterable[os.DirEntry]" = os.scandir(directory)
@@ -90,9 +96,15 @@ def getFilesInfos(
         elementPath:Path = directory.joinpath(element.name)
         if element.is_symlink(): continue # not a file, not supported
         elif element.is_file():
-            yield element
+            if (filePattern is None) or (filePattern.fullmatch(element.name)):
+                yield element
+            # else: (filePattern is a re.pattern) AND (filName didn't matched)
         elif element.is_dir():
-            yield from getFilesInfos(elementPath, maxDepth=nextDepth)
+            yield from getFilesInfos(
+                directory=elementPath, maxDepth=nextDepth,
+                checkPermission=checkPermission,
+                ordered=ordered, filePattern=filePattern,
+            )
         else: continue # not supported
 
 
