@@ -56,7 +56,7 @@ class PrettyPrint_CompactArgs():
     __slots__ = ("compactSmaller", "compactLarger", "compactSpecifics", "keepReccursiveCompact", "compactRules")
     def __init__(self,
             compactSmaller:"int|Literal[False]"=False, compactLarger:"int|Literal[False]"=False,
-            keepReccursiveCompact:bool=False, compactSpecifics:"set[type]|None"=None,
+            keepReccursiveCompact:bool=True, compactSpecifics:"set[type]|None"=None,
             compactRules:"_Pretty_CompactRules"=DEFAULT_COMPACT_RULES) -> None:
         self.compactSmaller:"int|Literal[False]" = compactSmaller
         self.compactLarger:"int|Literal[False]" = compactLarger
@@ -298,7 +298,7 @@ def __prettyPrint_internal(
 def prettyPrint(
         obj:"_PrettyPrintable", indentSequence:str=" "*4, compact:"bool|None|PrettyPrint_CompactArgs"=None,
         stream:"TextIO|None"=None, specificFormats:"dict[type[_T], Callable[[_T], str|Any]]|None"=None, end:"str|None"="\n",
-        specificCompact:"set[type]|None"=None, _defaultStrFunc:"Callable[[object], str]"=str, startIndent:int=0)->None:
+        specificCompact:"set[type]|None"=None, defaultStrFunc:"Callable[[object], str]"=str, startIndent:int=0)->None:
     """/!\\ may not be as optimized as pprint but prettier print\n
     default `stream` -> stdout\n
     `compact` ...\n
@@ -309,7 +309,7 @@ def prettyPrint(
     compactArgs:"PrettyPrint_CompactArgs"
     startCompactState:"_PP_compactState"
     if compact is None: # => use a default config
-        compactArgs = PrettyPrint_CompactArgs(1, 20)
+        compactArgs = PrettyPrint_CompactArgs(1, False)
         startCompactState = _PP_compactState(False, _force=None)
     elif compact is True: # => always force compact 
         compactArgs = PrettyPrint_CompactArgs() # don't care
@@ -334,7 +334,7 @@ def prettyPrint(
         oldCompactState=startCompactState,
         fixedArgs=_PrettyPrint_fixedArgs(
             stream=stream, indentSequence=indentSequence, 
-            toStringFunc=_defaultStrFunc, compactArgs=compactArgs,
+            toStringFunc=defaultStrFunc, compactArgs=compactArgs,
         )
     )
     if end is not None:
@@ -343,12 +343,12 @@ def prettyPrint(
 def prettyString(
         obj:"_PrettyPrintable", indentSequence:str=" "*4, compact:"bool|None|PrettyPrint_CompactArgs"=False,
         specificFormats:"dict[type[_T], Callable[[_T], str|Any]]|None"=None, specificCompact:"set[type]|None"=None,
-        _defaultStrFunc:"Callable[[object], str]"=str, startIndent:int=0)->str:
+        defaultStrFunc:"Callable[[object], str]"=str, startIndent:int=0)->str:
     stream = StringIO()
     prettyPrint(
         obj=obj, indentSequence=indentSequence, compact=compact, stream=stream,
         specificFormats=specificFormats, end=None, specificCompact=specificCompact,
-        _defaultStrFunc=_defaultStrFunc, startIndent=startIndent,
+        defaultStrFunc=defaultStrFunc, startIndent=startIndent,
     )
     return stream.getvalue()
 
