@@ -16,6 +16,12 @@ from holo.protocols import (
                            
 StrPath: TypeAlias = Union[str, Path]
 
+PATTERN_PY_FILES = r".*\.py"
+"""pattern for python(.py) files"""
+PATTERN_MANY_PY_FILES = r".*\.py[x]?"
+"""pattern for python(.py) files and cython(.pyx) files"""
+
+
 def combinePaths(*args:"StrPath")->str:
     if len(args) == 0:
         raise IndexError("args is empty, no paths to combine")
@@ -59,14 +65,14 @@ def getSize(path:str, endswith:"str|None"=None, maxDepth:int=-1, checkPermission
 def getFilesInfos(
         directory:Path, maxDepth:"int|None"=None, checkPermission:bool=True, 
         ordered:"bool|Callable[[os.DirEntry[str]], SupportsRichComparison]"=False,
-        filePattern:"str|re.Pattern[str]|None"=None)->"Generator[os.DirEntry, None, None]":
+        filePattern:"str|re.Pattern[str]|None"=None)->"Generator[os.DirEntry[str], None, None]":
     """create a generator that reccursively yield the infos about the files\n
     `directory` : Path, where to search\n
     `maxDepth` : int|None, the maximum reccursive depth allowed, \
         positive interger (0 -> current dir) or None (never stop)\n
     `checkPermission` : bool, wether it will \
         skip it when acces is not allowed, or raise an error\n
-    `ordered` : bool|Callable[[os.DirEntry], bool], wether it will sort the files \
+    `ordered` : bool|Callable[[os.DirEntry], bool], whether it will sort the files (per dir) \
         True -> by name, Callable -> custom\n
     """
     # determine next maxDepth
@@ -116,6 +122,7 @@ class ExtentionInfos(NamedTuple):
 
 def getSizeInfos(
         directory:Path, maxDepth:"int|None"=None,
+        ordered:"bool|Callable[[ExtentionInfos], SupportsRichComparison]"=False,
         checkPermission:bool=True, fullExtention:bool=False)->"list[ExtentionInfos]":
     nbFiles:"dict[str, int]" = DefaultDict(lambda : 0)
     totalSize:"dict[str, int]" = DefaultDict(lambda : 0)
@@ -130,11 +137,18 @@ def getSizeInfos(
         totalSize[extention] += file.stat().st_size
     
     cummulatedTotalSize:int = sum(totalSize.values())
-    return [
+    results:"list[ExtentionInfos]" = [
         ExtentionInfos(extention, nbFiles_, totalSize_, totalSize_/cummulatedTotalSize)
         for extention, nbFiles_, totalSize_
             in zip(nbFiles.keys(), nbFiles.values(), totalSize.values())
     ]
+    
+    if ordered is True: # => default ordered func
+        ordered = lambda extInfo: extInfo.totalSize
+    if ordered is not False: # => to sort
+        results = sorted(results, key=ordered)
+    return results
+    
 
 
 
@@ -361,4 +375,33 @@ class BlocksReader(Generic[_T_co_Sized]):
             yield content
             content = self.file.read(self.blocksSize)
             
-    
+
+
+def countLines_files(files:"Iterable[Path|os.DirEntry[str]]")->"dict[str, int]":
+    """count the number of newlines in each files"""
+    datas:"dict[str, int]" = {}
+    for fileInfo in files:
+        path:"Path"
+        if isinstance(fileInfo, Path):
+            path = fileInfo
+        elif isinstance(fileInfo, os.DirEntry):
+            path = Path(fileInfo.path)
+        else: raise TypeError(f"unsupported fileInfo type: {type(fileInfo)}")
+        with open(path, mode="r", errors="ignore") as file:
+            datas[path.as_posix()] = file.read().count("\n")
+    return datas
+
+def countLines_directory(
+        directory:"Path", *, fileNamePattern:"str|re.Pattern[str]|None",
+        )->"tuple[int, list[tuple[str, int]]]":
+    """return (`totalNbLines`, `eachFileNbLines`)\n
+    with `totalNbLines` the sum of the sizes in `eachFileNbLines`\n
+    and `eachFileNbLines` is a sorted(asc nbLines) list of (filePath, nbLines)\n
+    the files are all the files inside the `directory`(reccursively)\
+        that match the `fileNamePattern`"""
+    filesGenerator = getFilesInfos(directory, maxDepth=None, filePattern=fileNamePattern)
+    datas = countLines_files(filesGenerator)
+    datasSorted:"list[tuple[str, int]]" = \
+        sorted(list(datas.items()), key=lambda couple: couple[1])
+    totalLines:int = sum(datas.values())
+    return (totalLines, datasSorted)
