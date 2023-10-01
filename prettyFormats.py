@@ -1,4 +1,5 @@
 import sys
+import traceback
 from io import StringIO
 
 from holo.calc import divmod_rec
@@ -11,9 +12,12 @@ from holo.__typing import (
 from holo.protocols import _T, SupportsPretty
 
 
+
+_T_NamedTuple = TypeVar("_T_NamedTuple", bound=NamedTuple)
+
+
 def isinstanceNamedTuple(obj:object)->TypeGuard[NamedTuple]:
     return (isinstance(obj, tuple) and hasattr(obj, '_asdict') and hasattr(obj, '_fields'))
-
 
 
 
@@ -437,4 +441,25 @@ def get_prettyDataSizeBytes_Formater(dataSizeScale:"Literal['Kb', 'Mb', 'Gb', 'T
 def indent(text:str, nbIndents:int=1, indentSequence:str=" "*4)->str:
     fullIndentSequence = indentSequence * nbIndents
     return f"{fullIndentSequence}{(fullIndentSequence).join(text.splitlines(keepends=True))}"
-    
+
+
+def prettyfyNamedTuple(cls:"type[_T_NamedTuple]")->"type[_T_NamedTuple]":
+    """currently impossible to type but the retuned type \
+        satisfy holo.protocols.SupportsPretty"""
+    def __pretty__(self:_T_NamedTuple, *args, **kwargs):
+        return _ObjectRepr(self.__class__.__name__, (), self._asdict())
+    setattr(cls, "__pretty__", __pretty__) 
+    return cls
+
+
+def print_exception(error:BaseException, file:"TextIO|Literal['stderr', 'stdout']|None"=None)->None:
+    """print an exception like when it is raised (print the traceback)\n
+    default `stream` -> stderr"""
+    if file is None: file = sys.stderr
+    if file == "stdout": file = sys.stdout
+    if file == "stderr": file = sys.stderr
+    print(
+        "".join(traceback.format_tb(error.__traceback__))
+        + f"{error.__class__.__name__}: {error}",
+        file=file
+    )

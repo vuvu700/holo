@@ -1,17 +1,20 @@
 __author__ = "Andrieu Ludovic"
 
-import sys
-import traceback
-
 from holo.__typing import (
     TypeVar, Any, TextIO, Literal, Iterable, NamedTuple,
     Generic, Unpack, TypeVarTuple, ContextManager, Self,
+    overload, Iterator, Generator,
 )
 from holo.dummys import DummyContext
-from holo.prettyFormats import prettyPrint, prettyTime, _ObjectRepr
+from holo.prettyFormats import prettyPrint, prettyTime, _ObjectRepr, print_exception
 from holo.treeStrcutures import Node_Words, RootTreeIter, TreeIter
-from holo.protocols import _T, _T2
+from holo.pointers import Pointer, ListPointer
+from holo.protocols import _T, _T2, SupportsIndex, Sized
 
+
+_Contexts = TypeVarTuple("_Contexts") # NOTE: can't be bound to contexts only:(
+_TypesTuple = TypeVarTuple("_TypesTuple")
+_Tuple = TypeVar("_Tuple", bound=tuple)
 
 
 def split_rec(string:str, listeOfSeparator:"list[str]")->"list[str]":
@@ -198,66 +201,11 @@ def patternValidation(string:str, pattern:str)->"tuple[bool, dict[str, int|float
 
 def int_to_bytes(number:int)->bytes:
     """converte a number like 1234(=0x04d2) - b"\x04\xd2"> """
-    size = len(hex(number))
-    return number.to_bytes((size//2-1) + size%2, "big")
+    return bytes.fromhex(hex(number)[2: ])
 
 
 
 
-
-
-def print_exception(error:BaseException, file:"TextIO|Literal['stderr', 'stdout']|None"=None)->None:
-    """print an exception like when it is raised (print the traceback)\n
-    default `stream` -> stderr"""
-    if file is None: file = sys.stderr
-    if file == "stdout": file = sys.stdout
-    if file == "stderr": file = sys.stderr
-    print(
-        "".join(traceback.format_tb(error.__traceback__))
-        + f"{error.__class__.__name__}: {error}",
-        file=file
-    )
-
-
-
-
-
-
-
-
-class Pointer(Generic[_T]):
-    def __init__(self, value:"_T"=...)->None: # type: ignore -> the unkown state is whanted when no default value is given
-        self.__setted:bool = False
-        if value is not ...:
-            self.__value:"_T" = value
-            self.__setted = True
-
-    @property
-    def value(self)->"_T":
-        if self.__setted is True:
-            return self.__value
-        else: raise ValueError("the pointer is not setted, cant get the value")
-    @value.setter
-    def value(self, value:"_T")->None:
-        self.__value = value
-        self.__setted = True
-
-    def unSet(self)->None:
-        self.__setted = False
-        del self.__value
-
-
-    def isSetted(self)->bool:
-        return self.__setted
-
-    def __str__(self)->str:
-        return f"{self.__class__.__name__}({str(self.value)})"
-
-    def __repr__(self)->str:
-        return f"{self.__class__.__name__}({repr(self.__value) if self.__setted is True else ''})"
-
-
-_Contexts = TypeVarTuple("_Contexts") # NOTE: can't be bound to contexts only:(
 class MultiContext(tuple, ContextManager, Generic[Unpack[_Contexts]]):
     def __new__(cls, *contexts:"Unpack[_Contexts]")->Self:
         if any(not isinstance(ctx, ContextManager) for ctx in contexts):
@@ -276,7 +224,6 @@ class MultiContext(tuple, ContextManager, Generic[Unpack[_Contexts]]):
 
 
 
-_Tuple = TypeVar("_Tuple", bound=tuple)
 def editTuple(
         oldTuple:"_Tuple", editAtIndex:int,
         newValue:"_T", checkType:"bool|type[_T]"=False)->"_Tuple":
@@ -305,16 +252,6 @@ def assertIsinstance(value:Any, type_:"type[_T]")->_T:
     return value
 
 
-_T_NamedTuple = TypeVar("_T_NamedTuple", bound=NamedTuple)
-
-def prettyfyNamedTuple(cls:"type[_T_NamedTuple]")->"type[_T_NamedTuple]":
-    """currently impossible to type but the retuned type \
-        satisfy holo.protocols.SupportsPretty"""
-    def __pretty__(self:_T_NamedTuple, *args, **kwargs):
-        return _ObjectRepr(self.__class__.__name__, (), self._asdict())
-    setattr(cls, "__pretty__", __pretty__) 
-    return cls
-
 
 def rawInput(__size:int)->bytes:
     try: import msvcrt
@@ -339,3 +276,15 @@ def rawInput(__size:int)->bytes:
             trueSize += 1
     msvcrt.putch(b"\n")
     return b"".join(buffers)
+
+
+
+def iterateNtimes(__iterable:Iterable[_T], maxNbYields:int)->Generator[_T, None, None]:
+    """yield up to `maxNbYields` elements from the `__iterable`"""
+    yieldCount:int = 0
+    for element in __iterable:
+        yield element
+        
+        yieldCount += 1
+        if yieldCount == maxNbYields: # => finished
+            return None
