@@ -8,10 +8,11 @@ import re
 from holo.__typing import (
     Literal, NamedTuple, Generator, Callable,
     DefaultDict, Iterable, TypeAlias, Union,
-    Generic,
+    Generic, overload, cast
 )
 from holo.protocols import (
     _T_co_Sized, SupportsRichComparison, SupportsRead,
+    SupportsFileWrite,
 )
                            
 StrPath: TypeAlias = Union[str, Path]
@@ -405,3 +406,17 @@ def countLines_directory(
         sorted(list(datas.items()), key=lambda couple: couple[1])
     totalLines:int = sum(datas.values())
     return (totalLines, datasSorted)
+
+
+@overload
+def allocateDiskSpace(file:"SupportsFileWrite[str]", allocSize:int, bytesFile:"Literal[False]")->None: ...
+@overload
+def allocateDiskSpace(file:"SupportsFileWrite[bytes]", allocSize:int, bytesFile:"Literal[True]"=True)->None: ...
+def allocateDiskSpace(file:"SupportsFileWrite[bytes]|SupportsFileWrite[str]", allocSize:int, bytesFile:bool=True)->None:
+    """dangerous to allocate over alredy writen datas, safe on datas never writen\n
+    negatives or null values arent allowed"""
+    if allocSize <= 0: raise ValueError(f"inappropriate value for allocSize={allocSize}, it needs to be > 0")
+    file.seek(allocSize -1, 1) # move (allocSize -1) relative to here
+    if bytesFile is True: cast(SupportsFileWrite[bytes], file).write(b"\x00")
+    else: cast(SupportsFileWrite[str], file).write("\x00")
+    file.seek(-allocSize, 1) # move (-allocSize) relative to here (ie go back where it previously was)

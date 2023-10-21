@@ -3,7 +3,7 @@ __author__ = "Andrieu Ludovic"
 from holo.__typing import (
     TypeVar, Any, TextIO, Literal, Iterable, NamedTuple,
     Generic, Unpack, TypeVarTuple, ContextManager, Self,
-    overload, Iterator, Generator,
+    overload, Iterator, Generator, assertIsinstance,
 )
 from holo.dummys import DummyContext
 from holo.prettyFormats import prettyPrint, prettyTime, _ObjectRepr, print_exception
@@ -193,8 +193,10 @@ def patternValidation(string:str, pattern:str)->"tuple[bool, dict[str, int|float
         if (indexString == len(string)) and (indexPattern == len(pattern)):
             #the end of path and string reached => the string match the pattern
             return (True, dictVars)
-
-        raise RuntimeError("an error happend") # bad developement
+        elif indexString == len(string): # => indexPattern != len(pattern)
+            return (False, dictVars)
+        # => indexString == len(string)
+        raise RuntimeError(f"an error happend, it stopped with bad index: indexString={indexString}, indexPattern={indexPattern}") # bad developement
 
     return (False, dictVars)
 
@@ -244,12 +246,6 @@ def editTuple(
     )
 
 
-
-def assertIsinstance(value:Any, type_:"type[_T]")->_T:
-    """assert the type of value using assert isinstance(...), ... \n
-    NOTE: using -OO makes this func equaivalent to cast(...)"""
-    assert isinstance(value, type_), TypeError(f"the type if value: {type(value)} isn't an instance of type_={type_}")
-    return value
 
 
 

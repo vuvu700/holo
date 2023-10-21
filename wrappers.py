@@ -1,12 +1,12 @@
 from holo.__typing import (
-    TextIO, TypeVar, Callable, ParamSpec, Literal,
+    TextIO, TypeVar, Callable, Literal,
 )
 
 from holo import print_exception
 from holo.dummys import dummyWrapper, dummyWrapperOfWrapper
+from holo.protocols import _T, _P
 
-_T = TypeVar("_T")
-_P = ParamSpec("_P")
+
 _FailType = TypeVar("_FailType")
 failObject = object()
 

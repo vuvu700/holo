@@ -4,12 +4,12 @@ from time import perf_counter
 from holo.__typing import (
     Iterable, Callable, Any, Iterable,
     Generic, TypeVar, ContextManager,
-    LiteralString, ParamSpec, Self,
-    TypeGuard, Literal,
+    LiteralString, Self, TypeGuard, Literal,
 )
+from holo.protocols import _T, _P
 
-_P = ParamSpec("_P")
-_T = TypeVar("_T")
+
+
 
 _T_Categorie = TypeVar("_T_Categorie", bound=LiteralString)
 

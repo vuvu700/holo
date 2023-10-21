@@ -7,7 +7,8 @@ from holo.__typing import (
     Any, TextIO, NamedTuple, Callable, 
     Mapping, Iterable, Sequence, AbstractSet,
     TypeVar, Sized, Literal, TypeGuard, 
-    Sequence, _PrettyPrintable,
+    Sequence, _PrettyPrintable, assertIsinstance,
+    isNamedTuple, CodeType, JsonTypeAlias, NoReturn,
 )
 from holo.protocols import _T, SupportsPretty
 
@@ -16,9 +17,11 @@ from holo.protocols import _T, SupportsPretty
 _T_NamedTuple = TypeVar("_T_NamedTuple", bound=NamedTuple)
 
 
-def isinstanceNamedTuple(obj:object)->TypeGuard[NamedTuple]:
-    return (isinstance(obj, tuple) and hasattr(obj, '_asdict') and hasattr(obj, '_fields'))
-
+JSON_STR_ESCAPE_TRANSLATE_TABLE = {
+    ord('\"'): r'\"', ord("\\"): r"\\", ord("\b"): r"\b",
+    ord("\f"): r"\f", ord("\n"): r"\n", ord("\r"): r"\r",
+    ord("\t"): r"\t",
+}
 
 
 class _PrettyPrint_fixedArgs(NamedTuple):
@@ -230,15 +233,17 @@ def __prettyPrint_internal(
         if formatFunc is not None:
             # obj will use a specific format
             newObj:"str|Any" = formatFunc(obj)
-            if isinstance(newObj, str):
+            if newObj is obj: pass # => same object, use normal procedure
+            # => not the same object
+            elif isinstance(newObj, str):
                 fixedArgs.stream.write(newObj)
+                return None
             else:
-                __prettyPrint_internal(
+                return __prettyPrint_internal(
                     obj=newObj, currLineIndent=currLineIndent,
                     oldCompactState=oldCompactState,
                     specificFormats=specificFormats, fixedArgs=fixedArgs, 
                 )
-            return None
 
     ## then use the general rule
     currenCompactState:"_PP_compactState" = oldCompactState.newFromCompactPrint(
@@ -267,7 +272,7 @@ def __prettyPrint_internal(
             currenCompactState=currenCompactState, fixedArgs=fixedArgs,
         )
            
-    elif isinstance(obj, Mapping) or isinstanceNamedTuple(obj): # /!\ Mapping and NamedTuple can be iterable
+    elif isinstance(obj, Mapping) or isNamedTuple(obj): # /!\ Mapping and NamedTuple can be iterable
         delimiter = _PP_specialDelimChars.get(type(obj), DEFAULT_MAPPING_DELIM)
         # create iterator
         objItems:"Iterable[tuple[_PrettyPrintable, _PrettyPrintable]]" = \
@@ -300,14 +305,18 @@ def __prettyPrint_internal(
 
 
 def prettyPrint(
-        obj:"_PrettyPrintable", indentSequence:str=" "*4, compact:"bool|None|PrettyPrint_CompactArgs"=None,
-        stream:"TextIO|None"=None, specificFormats:"dict[type[_T], Callable[[_T], str|Any]]|None"=None, end:"str|None"="\n",
+        *objs:"_PrettyPrintable", objsSeparator:"str|None"=" ", indentSequence:str=" "*4, 
+        compact:"bool|None|PrettyPrint_CompactArgs"=None, stream:"TextIO|None"=None,
+        specificFormats:"dict[type[_T], Callable[[_T], str|Any]]|None"=None, end:"str|None"="\n",
         specificCompact:"set[type]|None"=None, defaultStrFunc:"Callable[[object], str]"=str, startIndent:int=0)->None:
     """/!\\ may not be as optimized as pprint but prettier print\n
     default `stream` -> stdout\n
     `compact` ...\n
     \t with compactUNDER if the size (in elts) of the object is <= its value (if not None)\n
-    \t => print it more compactly (similar thing for compactOVER)"""
+    \t => print it more compactly (similar thing for compactOVER)\n
+    `specificFormats` all values of the exact given type will be transformed with the given function\n
+        - 1) if the returned object IS the same object as in inputed object, use the normal procedure
+        - 2) if the returned object is a string, directly write it\n"""
     if stream is None: stream = sys.stdout
 
     compactArgs:"PrettyPrint_CompactArgs"
@@ -332,30 +341,46 @@ def prettyPrint(
             compactArgs.compactSpecifics.update(specificCompact)
         else: # => no current set => use the given one
             compactArgs.compactSpecifics = specificCompact
-
-    __prettyPrint_internal(
-        obj, currLineIndent=startIndent, specificFormats=specificFormats,
-        oldCompactState=startCompactState,
-        fixedArgs=_PrettyPrint_fixedArgs(
-            stream=stream, indentSequence=indentSequence, 
-            toStringFunc=defaultStrFunc, compactArgs=compactArgs,
-        )
-    )
+    
+    isFirstObj:bool = True
+    for obj in objs:
+        if (isFirstObj is False) and (objsSeparator is not None):
+            stream.write(objsSeparator)
+        else: isFirstObj = False # will be setted every times when (objsSeparator is None) but not a problem
+        __prettyPrint_internal(
+            obj, currLineIndent=startIndent, specificFormats=specificFormats,
+            oldCompactState=startCompactState,
+            fixedArgs=_PrettyPrint_fixedArgs(
+                stream=stream, indentSequence=indentSequence, 
+                toStringFunc=defaultStrFunc, compactArgs=compactArgs))
+        
     if end is not None:
         stream.write(end)
 
 def prettyString(
-        obj:"_PrettyPrintable", indentSequence:str=" "*4, compact:"bool|None|PrettyPrint_CompactArgs"=False,
-        specificFormats:"dict[type[_T], Callable[[_T], str|Any]]|None"=None, specificCompact:"set[type]|None"=None,
-        defaultStrFunc:"Callable[[object], str]"=str, startIndent:int=0)->str:
+        *objs:"_PrettyPrintable", objsSeparator:"str|None"=" ", indentSequence:str=" "*4,
+        compact:"bool|None|PrettyPrint_CompactArgs"=False, specificFormats:"dict[type[_T], Callable[[_T], str|Any]]|None"=None,
+        specificCompact:"set[type]|None"=None, defaultStrFunc:"Callable[[object], str]"=str, startIndent:int=0)->str:
     stream = StringIO()
     prettyPrint(
-        obj=obj, indentSequence=indentSequence, compact=compact, stream=stream,
-        specificFormats=specificFormats, end=None, specificCompact=specificCompact,
+        *objs, objsSeparator=objsSeparator, indentSequence=indentSequence, compact=compact, 
+        stream=stream, specificFormats=specificFormats, end=None, specificCompact=specificCompact,
         defaultStrFunc=defaultStrFunc, startIndent=startIndent,
     )
     return stream.getvalue()
 
+def prettyPrintToJSON(
+        obj:"_PrettyPrintable", indentSequence:str=" "*4, compact:"bool|None|PrettyPrint_CompactArgs"=None, stream:"TextIO|None"=None,
+        specificFormats:"dict[type[_T], Callable[[_T], str|Any]]|None"=None, end:"str|None"="\n", specificCompact:"set[type]|None"=None,
+        defaultStrFunc:"Callable[[None|bool|int|float|str|object], str]|None"=None, startIndent:int=0)->None:
+    """NOTE: don't check if the keys are str"""
+    if defaultStrFunc is None:
+        defaultStrFunc = toJSON_basicTypes
+    prettyPrint(
+        obj, objsSeparator=None, indentSequence=indentSequence, compact=compact,
+        stream=stream, specificFormats=specificFormats, end=end, specificCompact=specificCompact,
+        defaultStrFunc=defaultStrFunc, startIndent=startIndent,
+    )
 
 def prettyTime(t:float)->str:
     """print a time value in a more redable way"""
@@ -463,3 +488,13 @@ def print_exception(error:BaseException, file:"TextIO|Literal['stderr', 'stdout'
         + f"{error.__class__.__name__}: {error}",
         file=file
     )
+    
+
+def getCurrentFuncCode(depth:int=1)->CodeType:
+    return sys._getframe(depth).f_code
+
+def toJSON_basicTypes(obj:"None|bool|int|float|str|object")->"str|NoReturn":
+        if type(obj) == str: return f"\"{obj.translate(JSON_STR_ESCAPE_TRANSLATE_TABLE)}\""
+        elif type(obj) == bool: return ("true" if obj == True else "false")
+        elif type(obj) in (int, float): return str(obj)
+        else: raise TypeError(f"the value of the given type: {type(obj)} isn't supported (only support builtin types, no inheritance)")

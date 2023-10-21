@@ -192,29 +192,14 @@ class LinkedList(Generic[_T]):
         return f"{self.__class__.__name__}([{', '.join(map(repr, iter(self)))}])"
 
 class Stack(LinkedList[_T]):
-    # same as LinkedList, with less methodes
-    def append(self, value:"_T")->None:
-        """insert at the start"""
-        self.insert(value)
-    
-    def endValue(self, *args, **kwargs)->NoReturn:
-        """disabled methode"""
-        raise NotImplementedError()
+    # debind some methodes
+    append:None = None
+    endValue:None = None
 
 class Queue(LinkedList[_T]):
-    # same as LinkedList, with less methodes
-    def insert(self, value:"_T")->None:
-        """append at the end"""
-        self.append(value)
-    
-    def endValue(self, *args, **kwargs)->NoReturn:
-        """disabled methode"""
-        raise NotImplementedError()
-
-
-
-
-
+    # debind some methodes
+    insert:None = None
+    endValue:None = None
 
 
 

@@ -740,8 +740,8 @@ class ObjectSaver(Generic[_T_Savable]):
         self.__saveState = True
     
     def unLoad_noSave(self)->None:
-        """release the object in memory, without saving it (but will get marked as saved)\\
-        (it need to be saved once, in or it will crash when loading)"""
+        """release the object without saving it (but will get marked as saved)\\
+        trust the user that it will be abble to retreive it with load"""
         self.__value = _unsetted
         self.__saveState = True
     
@@ -910,6 +910,10 @@ class DictSaver(MutableMapping, Generic[_KT, _T_Savable]):
             result[key] = objSaver.getSaveLib()
         return result
 
+    def unLoad_noSave(self, key:"_KT")->None:
+        """release the object at `key` without saving it (but will get marked as saved)\\
+        trust the user that it will be abble to retreive it with load"""
+        self.__map[key].unLoad_noSave()
 
 
 

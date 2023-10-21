@@ -1,3 +1,4 @@
+from abc import abstractclassmethod
 from collections.abc import (
     Awaitable, Iterable, Set as AbstractSet, 
     Sized, Container, Iterator, Collection,
@@ -5,7 +6,7 @@ from collections.abc import (
 from holo.__typing import (
     Protocol, TypeVar, Any, TypeAlias, Union, runtime_checkable,
     Mapping, Sequence, NamedTuple, TYPE_CHECKING, overload, Self,
-    _PrettyPrintable, TracebackType, Callable, Concatenate,
+    _PrettyPrintable, TracebackType, Callable, Concatenate, ParamSpec,
 )
 
 if TYPE_CHECKING:
@@ -23,6 +24,8 @@ _T = TypeVar("_T")
 _T2 = TypeVar("_T2"); _T3 = TypeVar("_T3"); _T3 = TypeVar("_T3")
 _T_co = TypeVar("_T_co", covariant=True)
 _T_contra = TypeVar("_T_contra", contravariant=True)
+
+_P = ParamSpec("_P")
 
 ## bounded type vars
 _T_co_Sized = TypeVar("_T_co_Sized", bound=Sized, covariant=True)
@@ -173,6 +176,8 @@ class SupportsWrite(Protocol[_T_contra_Sized]):
 
 class SupportsFileWrite(SupportsContext, Protocol[_T_contra_Sized]):
     def write(self, __buffer: _T_contra_Sized) -> int: ...
+    def seek(self, __cookie: int, __whence: int = 0) -> int: ...
+    def tell(self) -> int: ...
     def close(self)->None: ...
 
 

@@ -1,8 +1,8 @@
-from holo.__typing import (Generic, TypeVar, Callable, ParamSpec, NoReturn)
+from holo.__typing import (Generic, Callable, NoReturn)
+from holo.protocols import _T, _P
 
 
-_T = TypeVar("_T")
-_P = ParamSpec("_P")
+
 
 def nullFunc()->NoReturn:
     raise RuntimeError("shoudn't be called")

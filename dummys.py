@@ -1,7 +1,6 @@
-from holo.__typing import ContextManager, Callable, TypeVar, ParamSpec
+from holo.__typing import ContextManager, Callable
+from holo.protocols import _T, _P
 
-_T = TypeVar("_T")
-_P = ParamSpec("_P")
 
 class DummyContext(ContextManager):
     def __enter__(self)->None: pass
