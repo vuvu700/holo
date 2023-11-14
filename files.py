@@ -235,15 +235,15 @@ def mkDirRec(directory:"StrPath")->None:
 
 
 def get_subdirectorys(directory:"StrPath")->"list[str]":
-    """return teh name of all the directorys insibe the targeted directory"""
+    """return the name of all the directorys insibe the targeted directory"""
     return [dirname for dirname in os.listdir(directory) if os.path.isdir(combinePaths(directory, dirname))]
 
 def get_subfiles(directory:"StrPath")->"list[str]":
-    """return teh name of all the directorys insibe the targeted directory"""
+    """return the name of all the directorys insibe the targeted directory"""
     return [filename for filename in os.listdir(directory) if os.path.isfile(combinePaths(directory, filename))]
 
 def get_subfilesAndDirs(directory:"StrPath")->"list[str]":
-    """return teh name of all the directorys insibe the targeted directory"""
+    """return the name of all the directorys insibe the targeted directory"""
     test = lambda path: (os.path.isfile(path) is True) or (os.path.isdir(path) is True)
     return [filename for filename in os.listdir(directory) if test(combinePaths(directory, filename))]
 

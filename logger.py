@@ -110,7 +110,7 @@ class LoggerContext():
         if isinstance(file, TextIOWrapper):
             self.file = file
         else:
-            encoding:"str|None" = None
+            encoding:"str|None" = "utf-8" # don't use None to be consistant with the std...
             if isinstance(file, tuple):
                 (file, encoding) = file
             self.file = open(file, mode='a', encoding=encoding)

@@ -3,12 +3,17 @@ from holo.protocols import _T, SupportsIndex
 
 from holo.__typing import (
     Generic, Iterator, Iterable, MutableSequence,
+    overload,
 )
 
 
 
 
 class Pointer(Generic[_T]):
+    @overload
+    def __init__(self)->None: ... # type: ignore -> the unkown state is whanted when no default value is given
+    @overload
+    def __init__(self, value:"_T")->None: ... # type: ignore -> the unkown state is whanted when no default value is given
     def __init__(self, value:"_T"=...)->None: # type: ignore -> the unkown state is whanted when no default value is given
         self.__setted:bool = False
         if value is not ...:

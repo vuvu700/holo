@@ -109,12 +109,12 @@ def divmod_rec(
     return results
 
 def divisor(n:int)->"list[int]":
-    """return the liste of its divisor"""
-    return [i for i in range(2, n) if n%i==0]
+    """return the list of its positive divisors"""
+    return [div for div in range(1, n//2+1) if n % div == 0]
 
 def nonDivisor(n:int)->"list[int]":
-    """return the liste of the numbers lower than  `n` that aren't its divisor"""
-    return [i for i in range(2, n) if n%i!=0]
+    """return the list of the numbers in [[1, n//2]] that aren't its divisor"""
+    return [div for div in range(1, n//2+1) if n % div != 0]
 
 
 

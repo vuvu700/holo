@@ -9,6 +9,7 @@ from typing import (
     DefaultDict, Iterator, Type, Container,
     TYPE_CHECKING, AbstractSet, MutableMapping,
     Tuple, List, Dict, Set, MutableSequence,
+    OrderedDict, 
 )
 from typing import _GenericAlias # type: ignore
 if sys.version_info < (3, 11):
@@ -45,6 +46,15 @@ def assertIsinstance(type_:"type[_T]|tuple[type[_T], ...]", value:Any)->"_T":
     if not isinstance(value, type_):
         raise TypeError(f"the type if value: {type(value)} isn't an instance of type_={type_}")
     return value
+
+def assertListSubType(subType:"type[_T]|tuple[type[_T], ...]", valuesList:"list[Any]")->"list[_T]":
+    """return `valuesList` and assert that all its <value> respect assertIsinstance(subType, <value>)"""
+    for subValue in valuesList: assertIsinstance(subType, subValue)
+    return valuesList
+
+def assertIterableSubType(subType:"type[_T]|tuple[type[_T], ...]", valuesList:"list[Any]")->"list[_T]":
+    """return a list with the values in `valuesList` and assert that all its <value> respect assertIsinstance(subType, <value>)"""
+    return [assertIsinstance(subType, subValue) for subValue in valuesList]
 
 _PrettyPrintable = Union[
     "SupportsPretty", "_ObjectRepr", # specifics
