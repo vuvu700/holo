@@ -342,6 +342,53 @@ def compress_video_lossless(
     videoOutput:ffmpeg.Stream = ffmpeg.output(stream, outputPath.as_posix(), **additionalArgs)
     return ffmpeg_run_stream(videoOutput, overwrite=overwrite, grabCommand=grabCommand)
 
+
+def generateVideoThumbnail(
+        inputVideoPath:Path, outputPath:Path,
+        overwrite:bool=True, grabCommand:"Pointer[list[str]]|None"=None)->Output:
+    """return best thumbnail of the video"""
+    assert inputVideoPath.exists(), \
+        FileNotFoundError(f"the inputVideoPath: {inputVideoPath} don't exist")
+    stream:ffmpeg.Stream = ffmpeg.input(inputVideoPath.as_posix())
+    additionalArgs:"dict[str, str|int]" = {"vf":"thumbnail", "frames:v": 1}
+    videoOutput:ffmpeg.Stream = ffmpeg.output(stream, outputPath.as_posix(), **additionalArgs)
+    return ffmpeg_run_stream(videoOutput, overwrite=overwrite, grabCommand=grabCommand)
+
+def generateVideoMultiThumbnails(
+        inputVideoPath:Path, outputPath:Path, 
+        nbThumbnails:int, minimumFrameDelta:float=0.4,
+        overwrite:bool=True, grabCommand:"Pointer[list[str]]|None"=None)->Output:
+    """return nth best thumbnails of the video\n
+    NOTE: the file name of `outputPath` must be a pattern like: 'image%..d.png'"""
+    assert 0. <= minimumFrameDelta <= 1.0, ValueError(f"invalide minimumFrameDelta: {minimumFrameDelta}, must be inside [0. -> 1.]")
+    assert inputVideoPath.exists(), \
+        FileNotFoundError(f"the inputVideoPath: {inputVideoPath} don't exist")
+    stream:ffmpeg.Stream = ffmpeg.input(inputVideoPath.as_posix())
+    additionalArgs:"dict[str, str|int]" = {
+        "vf": f"select=gt(scene\\,{minimumFrameDelta})",
+        "frames:v": nbThumbnails, 
+        "vsync": "vfr",
+    }
+    videoOutput:ffmpeg.Stream = ffmpeg.output(stream, outputPath.as_posix(), **additionalArgs)
+    return ffmpeg_run_stream(videoOutput, overwrite=overwrite, grabCommand=grabCommand)
+
+
+def addVideoThumbnail(
+        inputVideoPath:Path, thumbnailPath:Path, outputPath:Path,
+        overwrite:bool=True, grabCommand:"Pointer[list[str]]|None"=None)->Output:
+    """create a new video from `inputVideoPath` with the image at `tumbnailPath` as a thumbnail"""
+    assert inputVideoPath.exists(), FileNotFoundError(f"the inputVideoPath: {inputVideoPath} don't exist")
+    assert thumbnailPath.exists(), FileNotFoundError(f"the tumbnailPath: {thumbnailPath} don't exist")
+    stream:ffmpeg.Stream = ffmpeg.input(inputVideoPath.as_posix())
+    thumbnailStream:ffmpeg.Stream = ffmpeg.input(thumbnailPath.as_posix())
+    imagesExtention:str = thumbnailPath.suffix[1: ] # remove the '.' (and don't allow no extention)
+    additionalArgs:"dict[str, str|int]" = {
+        "c": "copy", "c:v:1": imagesExtention,
+        "disposition:v:1": "attached_pic"}
+    videoOutput = ffmpeg.output(stream, thumbnailStream, outputPath.as_posix(), **additionalArgs)
+    return ffmpeg_run_stream(videoOutput, overwrite=overwrite, grabCommand=grabCommand)
+    
+    
 """
 command:"Pointer[list[str]]" = Pointer()
 res = video_from_images(
@@ -417,6 +464,23 @@ for index, rate in enumerate(bRates):
         )
     print(rate, res.succes)
 prettyPrint(prof.avgTimes(), specificFormats={float: prettyTime})
+"""
+
+"""
+res = generateVideoThumbnail( 
+    inputVideoPath=Path("video.mp4"), 
+    outputPath=Path(f"bestThumbnail.png"),
+)
+prettyPrint(res)
+"""
+
+"""
+res = generateVideoMultiThumbnails( 
+    inputVideoPath=Path("video.mp4"), 
+    outputPath=Path(f"bestThumbnails%02d.png"),
+    nbThumbnails=10, minimumFrameDelta=0.4,
+)
+prettyPrint(res)
 """
 
 pass

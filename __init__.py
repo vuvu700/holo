@@ -284,3 +284,19 @@ def iterateNtimes(__iterable:Iterable[_T], maxNbYields:int)->Generator[_T, None,
         yieldCount += 1
         if yieldCount == maxNbYields: # => finished
             return None
+        
+
+def nbDigits(num:int)->int:
+    """return the number of digits of `num`\n
+    notes:
+     - for negative `num` return 1+nbDigits(abs(`num`)) because of the '-' in front
+     - nbDigits(0) = 1"""
+    nbDig:int = 1
+    if num < 0:
+        nbDig += 1
+        num = abs(num)
+    while num >= 10:
+        num //= 10
+        nbDig += 1
+    return nbDig
+    

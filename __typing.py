@@ -66,8 +66,9 @@ _PrettyPrintable = Union[
 
 def isNamedTuple(obj:object)->TypeGuard[NamedTuple]:
     """the isinstance(obj, NamedTuple) returns False for now, the morst accurate way to check it is this"""
-    return isinstance(obj, NamedTuple) \
-        or (isinstance(obj, tuple) and hasattr(obj, '_asdict') and hasattr(obj, '_fields'))
+    return isinstance(obj, tuple) \
+        and all(hasattr(obj, field) for field in 
+                ['_asdict', '_field_defaults', '_fields', '_make', '_replace'])
 
 
 JsonTypeAlias = Union[None, bool, int, float, str, List["JsonTypeAlias"], Dict[str, "JsonTypeAlias"]]
