@@ -10,11 +10,14 @@ from holo.__typing import (
     Sequence, _PrettyPrintable, assertIsinstance,
     isNamedTuple, CodeType, JsonTypeAlias, NoReturn,
 )
-from holo.protocols import _T, SupportsPretty
+from holo.protocols import _T, SupportsPretty, SupportsSlots
 
-
+# TODO:
+# apporter les ameiorations nécessaires pour pouvoir specificCompact les _ObjectRepr en fonction du type
+# corriger le pb(?) qui fait que les _ObjectRepr ne se compactent pas correctement en fonction de la taille 
 
 _T_NamedTuple = TypeVar("_T_NamedTuple", bound=NamedTuple)
+_T_Type = TypeVar("_T_Type", bound=type)
 
 
 JSON_STR_ESCAPE_TRANSLATE_TABLE = {
@@ -24,6 +27,35 @@ JSON_STR_ESCAPE_TRANSLATE_TABLE = {
 }
 
 
+
+
+
+def prettyfyNamedTuple(cls:"type[_T_NamedTuple]")->"type[_T_NamedTuple]":
+    """implement a generic methode to prettyPrint a NamedTuple class\n
+    currently impossible to type but the retuned type satisfy holo.protocols.SupportsPretty"""
+    def __pretty__(self:_T_NamedTuple, *args, **kwargs):
+        return _ObjectRepr(self.__class__.__name__, (), self._asdict())
+    setattr(cls, "__pretty__", __pretty__) 
+    return cls
+
+
+def basic__strRepr__(cls:_T_Type)->_T_Type:
+    """implement a generic __str__ and __repr__ methode for a class (for __dict__ and __slots__)"""
+    def __str__(self)->str:
+        kwargs:"dict[str, Any]"
+        if isinstance(self, SupportsSlots):
+            kwargs = {name: getattr(self, name) for name in self.__slots__}
+        else: kwargs = __dict__
+        return f"{self.__class__.__name__}({', '.join(f'{name}={value}' for name, value in kwargs.items())})"
+
+    setattr(cls, "__str__", __str__) 
+    setattr(cls, "__repr__", __str__) 
+    return cls
+
+
+
+
+@prettyfyNamedTuple
 class _PrettyPrint_fixedArgs(NamedTuple):
     stream:TextIO
     compactArgs:"PrettyPrint_CompactArgs"
@@ -34,6 +66,7 @@ class _PrettyPrint_fixedArgs(NamedTuple):
         return self.indentSequence * nbIndents
 
 
+@prettyfyNamedTuple
 class _Pretty_Delimiter(NamedTuple):
     open:str; close:str
 
@@ -46,6 +79,7 @@ DEFAULT_ITERABLE_DELIM = _Pretty_Delimiter("[", "]")
 EMPTY_DELIM = _Pretty_Delimiter("", "")
 
 
+@prettyfyNamedTuple
 class _Pretty_CompactRules(NamedTuple):
     """ - True => compact it\n
      - False => don't compact it\n
@@ -59,6 +93,7 @@ DEFAULT_COMPACT_RULES:"_Pretty_CompactRules" = \
     _Pretty_CompactRules(newLine=True, indent=True, seqSpacing=False, mapSpacing=False, key=True)
 """when compacting, it compact newLines, indents and keys but don't compact the spacing"""
 
+@basic__strRepr__
 class PrettyPrint_CompactArgs():
     __slots__ = ("compactSmaller", "compactLarger", "compactSpecifics", "keepReccursiveCompact", "compactRules")
     def __init__(self,
@@ -71,15 +106,15 @@ class PrettyPrint_CompactArgs():
         self.keepReccursiveCompact:bool = keepReccursiveCompact
         self.compactRules:"_Pretty_CompactRules" = compactRules
         
-    def newCompactPrint(self, obj:Any, currentCompactState:"_PP_compactState")->bool:
+    def newCompactPrint(self, 
+            objType:type, objSize:"int|None", currentCompactState:"_PP_compactState")->bool:
         if currentCompactState._force is not None: 
             return currentCompactState._force # forced
         if (currentCompactState.compactPrint is True) and (self.keepReccursiveCompact is True):
             return True # keep compacting
         # => we will over write the compactPrint
         ### compact based on size
-        if isinstance(obj, Sized):
-            objSize:int = len(obj)
+        if objSize is not None:
             if (self.compactSmaller is not False) and (objSize <= self.compactSmaller):
                 return True
             if (self.compactLarger is not False) and (objSize >= self.compactLarger):
@@ -87,9 +122,10 @@ class PrettyPrint_CompactArgs():
         ### compact based on specific type
         if self.compactSpecifics is None: 
             return False # no specific rule
-        return type(obj) in self.compactSpecifics
+        return objType in self.compactSpecifics
 
 
+@basic__strRepr__
 class _PP_compactState():
     __slots__ = ("compactPrint", "_force")
     def __init__(self, compactPrint:bool, _force:"bool|None"=None) -> None:
@@ -101,17 +137,22 @@ class _PP_compactState():
     def force(self, forceState:"bool|None")->"_PP_compactState":
         return _PP_compactState(compactPrint=self.compactPrint, _force=forceState)
 
-
+@prettyfyNamedTuple
 class _PP_KeyValuePair(NamedTuple):
     key:"_PrettyPrintable"; value:"_PrettyPrintable"
 def _iterableToPairs(objItems:"Iterable[tuple[_PrettyPrintable, _PrettyPrintable]]")->"Iterable[_PP_KeyValuePair]":
     return map(lambda pair: _PP_KeyValuePair(*pair), objItems)
 
+# don't @prettyfyNamedTuple
 class _ObjectRepr(NamedTuple):
     className:str
     args:"tuple[_PrettyPrintable, ...]"
     kwargs:"dict[str, _PrettyPrintable]"
+    kwargs_keyToValue:str = "="
+    separator:str = ","
 
+    def __len__(self)->int:
+        return len(self.args) + len(self.kwargs)
 
 
 def __prettyPrint_internal__print_Generic(
@@ -152,7 +193,8 @@ def __prettyPrint_internal__print_Generic(
         if (isMapping is True) and isinstance(subObj, _PP_KeyValuePair):
             # key
             __prettyPrint_internal(
-                obj=subObj.key, currLineIndent=currLineIndent+1, specificFormats=specificFormats,
+                obj=subObj.key, currLineIndent=currLineIndent+1, 
+                prettyfyFromObj=None, specificFormats=specificFormats,
                 oldCompactState=currenCompactState.force(currCompactRules.key),
                 fixedArgs=fixedArgs,
                 # to force compacting state seem better for a key
@@ -170,7 +212,8 @@ def __prettyPrint_internal__print_Generic(
         
         # value
         __prettyPrint_internal(
-            obj=value, currLineIndent=currLineIndent+1, specificFormats=specificFormats,
+            obj=value, prettyfyFromObj=None,
+            currLineIndent=currLineIndent+1, specificFormats=specificFormats,
             oldCompactState=currenCompactState, fixedArgs=fixedArgs,
         )
     if (isFirstElt is False) and (printEndingSeparator is True):
@@ -188,29 +231,30 @@ def __prettyPrint_internal__print_Generic(
     
 
 def __prettyPrint_internal__print_ObjectRepr(
-        obj:"_ObjectRepr", currCompactRules:"_Pretty_CompactRules", currLineIndent:int,
+        obj_repr:"_ObjectRepr", currCompactRules:"_Pretty_CompactRules", currLineIndent:int,
         specificFormats:"dict[type[_T], Callable[[_T], str|_PrettyPrintable]]|None",
         currenCompactState:"_PP_compactState", fixedArgs:"_PrettyPrint_fixedArgs")->None:
     """internal that pretty print `mapping like` or `sequence like` objects"""
-    fixedArgs.stream.write(obj.className)
+    fixedArgs.stream.write(obj_repr.className)
     fixedArgs.stream.write("(")
     # size check needed: without this condition an empty object
     #   will print a starting sequence and an ending sequence
-    argsIsEmpty:bool = (len(obj.args) != 0)
-    kwargsIsEmpty:bool = (len(obj.kwargs) != 0)
-    if (argsIsEmpty is False) or (kwargsIsEmpty is False):
+    if len(obj_repr) != 0: # => things to print
         __prettyPrint_internal__print_Generic(
-            objItems=obj.args, isMapping=False, printEndingSeparator=kwargsIsEmpty,
-            separatorSequence=",", keyToValue_sequence="",
+            objItems=obj_repr.args, isMapping=False,
+            printEndingSeparator=(len(obj_repr.kwargs) != 0),
+            separatorSequence=obj_repr.separator, keyToValue_sequence="",
             delimiter=EMPTY_DELIM, currCompactRules=currCompactRules,
             printStartingSequence=True, printEndingSeqence=False,
             currLineIndent=currLineIndent, specificFormats=specificFormats,
             currenCompactState=currenCompactState, fixedArgs=fixedArgs,
         )
         __prettyPrint_internal__print_Generic(
-            objItems=_iterableToPairs(obj.kwargs.items()), isMapping=True,
-            separatorSequence=",", keyToValue_sequence="=", printEndingSeparator=False,
-            delimiter=EMPTY_DELIM, currCompactRules=currCompactRules._replace(mapSpacing=True),
+            objItems=_iterableToPairs(obj_repr.kwargs.items()), isMapping=True,
+            separatorSequence=obj_repr.separator,
+            keyToValue_sequence=obj_repr.kwargs_keyToValue,
+            printEndingSeparator=False, delimiter=EMPTY_DELIM, 
+            currCompactRules=currCompactRules._replace(mapSpacing=True),
             printStartingSequence=False, printEndingSeqence=True,
             currLineIndent=currLineIndent, specificFormats=specificFormats,
             currenCompactState=currenCompactState, fixedArgs=fixedArgs,
@@ -220,12 +264,14 @@ def __prettyPrint_internal__print_ObjectRepr(
 
 
 def __prettyPrint_internal(
-        obj:"_PrettyPrintable", currLineIndent:int,
+        obj:"_PrettyPrintable", currLineIndent:int, prettyfyFromObj:"Any|None",
         specificFormats:"dict[type[_T], Callable[[_T], str|_PrettyPrintable]]|None",
         oldCompactState:"_PP_compactState", fixedArgs:"_PrettyPrint_fixedArgs")->None:
     """`compactUnder` if the size (in elts) of the object is under its value, print it more compactly\n
     `specificFormats` is a dict: type -> (func -> obj -> str), if an obj is an instance use this to print\n
-    `printClassName` whether it will print the class before printing the object (True->alway, None->default, False->never)\n"""
+    `printClassName` whether it will print the class before printing the object (True->alway, None->default, False->never)\n
+    `prettyfyFromObj` is setted when called after prettyfying an object to the object from it, otherwise is None\
+        since None can't have a __pretty__ methode it is safe to use this value\n"""
 
     ## look for a specific format first
     if (specificFormats is not None):
@@ -241,13 +287,17 @@ def __prettyPrint_internal(
             else:
                 return __prettyPrint_internal(
                     obj=newObj, currLineIndent=currLineIndent,
-                    oldCompactState=oldCompactState,
+                    oldCompactState=oldCompactState, prettyfyFromObj=None,
                     specificFormats=specificFormats, fixedArgs=fixedArgs, 
                 )
 
     ## then use the general rule
     currenCompactState:"_PP_compactState" = oldCompactState.newFromCompactPrint(
-        fixedArgs.compactArgs.newCompactPrint(obj, oldCompactState)
+        fixedArgs.compactArgs.newCompactPrint(
+            objType=type(obj if prettyfyFromObj is None else prettyfyFromObj), 
+            objSize=(len(obj) if isinstance(obj, Sized) else None),
+            currentCompactState=oldCompactState,
+        )
     )
     doCompactPrint:bool = currenCompactState.compactPrint
     currentCompactRules = _Pretty_CompactRules(
@@ -260,14 +310,16 @@ def __prettyPrint_internal(
 
     if isinstance(obj, SupportsPretty):
         __prettyPrint_internal(
-            obj=obj.__pretty__(compactRules=currentCompactRules),
+            obj=obj.__pretty__(compactRules=currentCompactRules), 
+            prettyfyFromObj=(obj if prettyfyFromObj is None else prettyfyFromObj), 
+            # => keep the first prettyfyFromObj 
             currLineIndent=currLineIndent, oldCompactState=oldCompactState,
             specificFormats=specificFormats, fixedArgs=fixedArgs, 
         )
     
     elif isinstance(obj, _ObjectRepr):
         __prettyPrint_internal__print_ObjectRepr(
-            obj=obj, currCompactRules=currentCompactRules,
+            obj_repr=obj, currCompactRules=currentCompactRules,
             currLineIndent=currLineIndent, specificFormats=specificFormats,
             currenCompactState=currenCompactState, fixedArgs=fixedArgs,
         )
@@ -348,8 +400,8 @@ def prettyPrint(
             stream.write(objsSeparator)
         else: isFirstObj = False # will be setted every times when (objsSeparator is None) but not a problem
         __prettyPrint_internal(
-            obj, currLineIndent=startIndent, specificFormats=specificFormats,
-            oldCompactState=startCompactState,
+            obj, prettyfyFromObj=None, currLineIndent=startIndent,
+            specificFormats=specificFormats, oldCompactState=startCompactState,
             fixedArgs=_PrettyPrint_fixedArgs(
                 stream=stream, indentSequence=indentSequence, 
                 toStringFunc=defaultStrFunc, compactArgs=compactArgs))
@@ -467,14 +519,6 @@ def indent(text:str, nbIndents:int=1, indentSequence:str=" "*4)->str:
     fullIndentSequence = indentSequence * nbIndents
     return f"{fullIndentSequence}{(fullIndentSequence).join(text.splitlines(keepends=True))}"
 
-
-def prettyfyNamedTuple(cls:"type[_T_NamedTuple]")->"type[_T_NamedTuple]":
-    """currently impossible to type but the retuned type \
-        satisfy holo.protocols.SupportsPretty"""
-    def __pretty__(self:_T_NamedTuple, *args, **kwargs):
-        return _ObjectRepr(self.__class__.__name__, (), self._asdict())
-    setattr(cls, "__pretty__", __pretty__) 
-    return cls
 
 
 def print_exception(error:BaseException, file:"TextIO|Literal['stderr', 'stdout']|None"=None)->None:

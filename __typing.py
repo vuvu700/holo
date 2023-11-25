@@ -18,14 +18,14 @@ if sys.version_info < (3, 11):
         Unpack, TypeGuard, LiteralString,
         ParamSpec, TypeAlias, Protocol,
         runtime_checkable, Concatenate,
-        TypedDict, NotRequired,
+        TypedDict, NotRequired, get_args,
     )
 else: from typing import (
         Literal, Self, TypeVarTuple,
         Unpack, TypeGuard, LiteralString,
         ParamSpec, TypeAlias, Protocol,
         runtime_checkable, Concatenate,
-        TypedDict, NotRequired,
+        TypedDict, NotRequired, get_args,
     )
 
 if TYPE_CHECKING:

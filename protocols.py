@@ -33,6 +33,11 @@ _T_contra_Sized = TypeVar("_T_contra_Sized", bound=Sized, contravariant=True)
 
 
 
+@runtime_checkable
+class SupportsSlots(Protocol):
+    __slots__:"tuple[str, ...]"
+
+
 # stable
 class IdentityFunction(Protocol):
     def __call__(self, __x: _T) -> _T: ...
