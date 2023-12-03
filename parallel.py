@@ -3,12 +3,32 @@ from queue import Queue, Empty as EmptyError
 from threading import Thread
 import time
 
-from holo.__typing import Callable, Any, Iterable, TypeAlias
+from holo.__typing import (
+    Callable, Any, Iterable, Generic,
+)
+from holo.prettyFormats import basic__strRepr__
 from holo.protocols import _T, _P
 from holo import Pointer
 
-_TaskNoReturn:TypeAlias = "tuple[Callable[..., None], Iterable[Any], dict[str, Any]]"
-_TaskWithReturn:TypeAlias = "tuple[Callable[..., Any], Iterable[Any], dict[str, Any]]"
+@basic__strRepr__
+class TaskNoReturn():
+    __slots__ = ("func", "funcArgs", "funcKwargs")
+    def __init__(self, func:"Callable[_P, None]", *funcArgs:_P.args, **funcKwargs:_P.kwargs) -> None:
+        self.func = func
+        self.funcArgs = funcArgs
+        self.funcKwargs = funcKwargs
+    
+@basic__strRepr__
+class TaskWithReturn(Generic[_T]):
+    __slots__ = ("func", "funcArgs", "funcKwargs")
+    def __init__(self, func:"Callable[_P, _T]", *funcArgs:_P.args, **funcKwargs:_P.kwargs) -> None:
+        self.func = func
+        self.funcArgs = funcArgs
+        self.funcKwargs = funcKwargs
+    def _toTuple(self)->"tuple[Callable[..., Any], Iterable[Any], dict[str, Any]]":
+        """internal function that remove the _P typing constraints"""
+        return (self.func, self.funcArgs, self.funcKwargs)
+
 
 class Worker(Thread):
     def __init__(self, manager:"Manager")->None:
@@ -23,19 +43,19 @@ class Worker(Thread):
                 continue
             
             # try to get some work
-            try: (func, funcArgs, funcKwargs) = self.manager._tasksList.get()
+            try: task = self.manager._tasksList.get()
             except EmptyError: 
                 time.sleep(1e-5) # => relase the thread
                 continue # => retry
             
             #=> got some work => do it
-            func(*funcArgs, **funcKwargs)
+            task.func(*task.funcArgs, **task.funcKwargs)
             self.manager._tasksList.task_done()
 
 
 class Manager():
     def __init__(self, nbWorkers:int, startPaused:bool=False)->None:
-        self._tasksList:"Queue[_TaskNoReturn]" = Queue()
+        self._tasksList:"Queue[TaskNoReturn]" = Queue()
         self.__workers:"list[Worker]" = [Worker(self) for _ in range(nbWorkers)]
         self.__paused:bool = startPaused
         # start the workers
@@ -45,7 +65,10 @@ class Manager():
     def addWork(self, func:"Callable[_P, None]", *funcArgs:_P.args, **funcKwargs:_P.kwargs)->None:
         """add the work to the stack, will start when a worker will be available\n
         if you need to return a value, consider callbacks, or use a Pointer"""
-        self._tasksList.put((func, funcArgs, funcKwargs))
+        self._tasksList.put(TaskNoReturn(func, *funcArgs, **funcKwargs))
+    def addTaskNoReturn(self, task:TaskNoReturn)->None:
+        """add the task to the stack, will start when a worker will be available"""
+        self._tasksList.put(task)
     
     @property
     def isPaused(self)->bool:
@@ -67,23 +90,24 @@ class Manager():
         self._tasksList.join()
 
 
-def taskResultGraber(func:"Callable[_P, None]", resPtr:Pointer, *funcArgs:_P.args, **funcKwargs:_P.kwargs)->None:
+#def taskResultGraber(func:"Callable[_P, _T|Any]", resPtr:"Pointer[_T|Any]", *funcArgs:_P.args, **funcKwargs:_P.kwargs)->None:
+def taskResultGraber(func:"Callable[_P, _T]", resPtr:"Pointer[_T]", *funcArgs:_P.args, **funcKwargs:_P.kwargs)->None:
     """a util function that put the result of `func` in `resPtr`"""
     resPtr.value = func(*funcArgs, **funcKwargs)
 
-def parallelExec(tasks:"list[_TaskWithReturn]", nbWorkers:"int|None")->"list[Any]":
+def parallelExec(tasks:"list[TaskWithReturn[_T]]", nbWorkers:"int|None")->"list[_T]":
     """execute the `tasks` in parallel with `nbWorkers` workers\n
     `nbWorkers`: int -> the numbr of worker to create, None -> create one worker per tasks\n
     return a list of results as [tasks[0] -> res[0], ..., tasks[n] -> res[n]]"""
     nbTasks:int = len(tasks)
     # create pointers to grab each results
-    resultPointers = [Pointer() for _ in range(nbTasks)]
+    resultPointers:"list[Pointer[_T]]" = [Pointer() for _ in range(nbTasks)]
     # crate the manager
-    if nbWorkers is None:
-        manager = Manager(nbWorkers=nbTasks, startPaused=False)
-    else: manager = Manager(nbWorkers=nbWorkers, startPaused=False)
+    if nbWorkers is None: nbWorkers = nbTasks
+    manager = Manager(nbWorkers=nbWorkers, startPaused=False)
     # start working
-    for taskIndex, (func, funcArgs, funcKwargs) in enumerate(tasks):
+    for taskIndex, task in enumerate(tasks):
+        (func, funcArgs, funcKwargs) = task._toTuple()
         manager.addWork(taskResultGraber, func, resultPointers[taskIndex], *funcArgs, **funcKwargs)
     # wait until all tasks are done
     manager.join()
