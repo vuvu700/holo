@@ -49,8 +49,8 @@ class Worker(Thread):
                 continue # => retry
             
             #=> got some work => do it
-            task.func(*task.funcArgs, **task.funcKwargs)
-            self.manager._tasksList.task_done()
+            try: task.func(*task.funcArgs, **task.funcKwargs)
+            finally: self.manager._tasksList.task_done()
 
 
 class Manager():
