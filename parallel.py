@@ -4,10 +4,10 @@ from threading import Thread
 import time
 
 from holo.__typing import (
-    Callable, Any, Iterable, Generic,
+    Callable, Any, Iterable, Generic, Sequence,
 )
 from holo.prettyFormats import basic__strRepr__
-from holo.protocols import _T, _P
+from holo.protocols import _T, _P, SizedIterable
 from holo import Pointer
 
 @basic__strRepr__
@@ -95,7 +95,7 @@ def taskResultGraber(func:"Callable[_P, _T]", resPtr:"Pointer[_T]", *funcArgs:_P
     """a util function that put the result of `func` in `resPtr`"""
     resPtr.value = func(*funcArgs, **funcKwargs)
 
-def parallelExec(tasks:"list[TaskWithReturn[_T]]", nbWorkers:"int|None")->"list[_T]":
+def parallelExec(tasks:"SizedIterable[TaskWithReturn[_T]]", nbWorkers:"int|None")->"list[_T]":
     """execute the `tasks` in parallel with `nbWorkers` workers\n
     `nbWorkers`: int -> the numbr of worker to create, None -> create one worker per tasks\n
     return a list of results as [tasks[0] -> res[0], ..., tasks[n] -> res[n]]"""

@@ -114,6 +114,9 @@ class SupportsDivModRec(Protocol[_T_contra, _T_co]):
 class SupportsIter(Protocol[_T_co]):
     def __iter__(self) -> _T_co: ...
 
+class SizedIterable(Iterable[_T_co], Sized):
+    ...
+
 class SupportsIterable(SupportsIter[_T_co], Protocol):
     def __iter__(self)->"Iterator[_T_co]": ...
 
