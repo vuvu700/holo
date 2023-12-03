@@ -299,4 +299,12 @@ def nbDigits(num:int)->int:
         num //= 10
         nbDig += 1
     return nbDig
-    
+
+
+class IterableSized(Generic[_T]):
+    __slots__ = ("elements", "size")
+    def __init__(self, elements:"Iterable[_T]", size:int) -> None:
+        self.elements = elements
+        self.size = size
+    def __iter__(self): return iter(self.elements)
+    def __len__(self): return self.size
