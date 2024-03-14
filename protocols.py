@@ -7,6 +7,7 @@ from holo.__typing import (
     Protocol, TypeVar, Any, TypeAlias, Union, runtime_checkable,
     Mapping, Sequence, NamedTuple, TYPE_CHECKING, overload, Self,
     _PrettyPrintable, TracebackType, Callable, Concatenate, ParamSpec,
+    LiteralString, Literal,
 )
 
 if TYPE_CHECKING:
@@ -24,6 +25,7 @@ _T = TypeVar("_T")
 _T2 = TypeVar("_T2"); _T3 = TypeVar("_T3"); _T3 = TypeVar("_T3")
 _T_co = TypeVar("_T_co", covariant=True)
 _T_contra = TypeVar("_T_contra", contravariant=True)
+_StrLiteral = TypeVar("_StrLiteral", bound=LiteralString)
 
 _P = ParamSpec("_P")
 
@@ -209,3 +211,25 @@ class SupportsPretty(Protocol):
         """return the new object to pretty print\n
         `compactRules`: None when not specified"""
         ...
+
+
+### support of mathematical operations
+
+
+class SupportsMathAdd(Protocol):
+    def __add__(self:"_T_MathAdd", other:"_T_MathAdd|Literal[0]")->"_T_MathAdd": ...
+    def __sub__(self:"_T_MathAdd", other:"_T_MathAdd|Literal[0]")->"_T_MathAdd": ...
+
+class SupportsMathMul(Protocol):
+    def __mul__(self:"_T_MathMul", other:"_T_MathMul|Literal[1]")->"_T_MathMul": ...
+    def __pow__(self:"_T_MathMul", other:"int")->"_T_MathMul": ...
+    def __div__(self:"_T_MathMul", other:"_T_MathMul|Literal[1]")->"_T_MathMul": ...
+
+class SupportsMathRing(SupportsMathAdd, SupportsMathMul):
+    ...
+
+_T_MathAdd = TypeVar("_T_MathAdd", bound=SupportsMathAdd)
+_T_MathMul = TypeVar("_T_MathMul", bound=SupportsMathMul)
+_T_MathRing = TypeVar("_T_MathRing", bound=SupportsMathRing)
+
+
