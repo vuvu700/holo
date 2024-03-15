@@ -99,11 +99,55 @@ class Monomial(Generic[_T_MathRing]):
 
 
 
+r""" Karatsuba polynomial theory: 
+\text{############ when deg(a) ~ deg(b) ############} \newline
+\text{the datas: } \newline
+deg(a) = n = 2k \ge deg(b) \gt k \newline
+a := a_1x^k + a_0 \text{ and } b := b_1x^k + b_0 \newline
+\newline
+
+\text{pre calc: }\newline
+c_0 := a_0 \times b_0 \text{ and } c_2 := a_1 \times b_1 \newline
+\lambda_1 := a_1 - a_0 \text{ and } \lambda_2 := b_1 - b_0 \newline 
+\lambda_3 := \lambda_1 \times \lambda_2 \text{ and } \lambda_4 := c_2 + c_0 \newline
+c_1:=  \lambda_4 - \lambda_3 \newline
+\newline
+
+\text{proofs: } \newline
+c_1 = (a_1b_0 + a_0b_1) = ((a_1b_1 + a_0b_0) - (a_1-a_0)(b_1-b_0)) \newline
+a \times b = (a_1x^k + a_0) \times (b_1x^k+b_0) \newline
+a \times b = a_1b_1x^{2k} + (a_1b_0 + a_0b_1)x^k + a_0b_0 \newline
+a \times b = c_2x^{2k} + c_1x^k + c_2 \newline
+\newline
+
+\text{cost :} \newline
+C(n) = 3 \times C(n/2) + \alpha \times n \newline
+C(n) = (\alpha +1)n^{log_2(3)} - 2\alpha \times n \newline
+\Rightarrow  O(n^{log_2(3)}) \newline
+\newline
 
 
+\text{############ when deg(a) >> deg(b) ############} \newline
+\text{the datas: } \newline
+deg(a) = n = 2k \ge 2*deg(b) \Rightarrow deg(b) < k \newline
+a := a_1x^k + a_0 \text{ and } b := 0x^k + b_0 = b_0 \newline
+\newline
 
+\text{pre calc: }\newline
+c_1 := a_1 \times b_0  \text{ and } c_0 := a_0 \times b_0 \newline
+\newline
 
-class SimplePolynomial(Generic[_T_MathRing, _StrLiteral], SupportsMathRing):
+\text{proofs: } \newline
+a \times b = (a_1x^k + a_0) \times (b_0) \newline
+a \times b = a_1b_0x^k + a_0b_0 \newline
+a \times b = c_1x^k + c_0 \newline
+\newline
+
+\text{cost:} \newline
+C(n) = 2 \times C(n/2) + \alpha \times n \newline
+"""
+
+class SimplePolynomial(Generic[_T_MathRing, _StrLiteral]):
     __slots__ = ("__coeffs", "__varName", "__degree")
     
     @overload
@@ -144,9 +188,19 @@ class SimplePolynomial(Generic[_T_MathRing, _StrLiteral], SupportsMathRing):
                     ValueError("canot give a `degree` while giving `monomials` without copying (should be internal only)")
                 self.__coeffs = monomials
         else: # => consecutive coeffs given (0 or more)
-            assert (expression is None) and (monomials is None) and (_copy is False) and (degree is None), \
+            assert (expression is None) and (monomials is None) and (_copy is True) and (degree is None), \
                 ValueError("canot give a `expression`, `monomials`, `_copy`, `degree` while giving `coeffs`")
             self.__coeffs = {power: coef for (power, coef) in enumerate(coeffs)}
+    
+    def __str__(self)->str:
+        powers = sorted(self.__coeffs.keys(), reverse=True)
+        return " + ".join(
+            f"{self.__coeffs[power]}*{self.__varName}^{power}" 
+            for power in powers)
+    def __repr__(self)->str:
+        powers = sorted(self.__coeffs.keys(), reverse=False)
+        coeffsText = ", ".join(repr(self.__coeffs[power]) for power in powers)
+        return f"{self.__class__.__name__}({coeffsText}, variableName={repr(self.__varName)})"
     
     def optimize(self)->bool:
         """optimize the polynomial (pop the null coeffs)
@@ -178,10 +232,14 @@ class SimplePolynomial(Generic[_T_MathRing, _StrLiteral], SupportsMathRing):
         return self.__degree
         
 
+
     @classmethod
-    def __internalAdd(cls, coeffsTarget:"dict[int, _T_MathRing]", coeffsOther:"dict[int, _T_MathRing]")->"dict[int, _T_MathRing]":
-        """performe the 'add' ops on the coeffs of `coeffsTarget` with the coeffs of `coeffsTarget`, returns `coeffsTarget`"""
+    def __internalAdd(cls, 
+            coeffsTarget:"dict[int, _T_MathRing]", coeffsOther:"dict[int, _T_MathRing]",
+            additionalPower:int=0)->"dict[int, _T_MathRing]":
+        """perform `coeffsTarget` += `coeffsOther` * X^`additionalPower`, returns `coeffsTarget`"""
         for (power, coefOther) in coeffsOther.items():
+            power += additionalPower
             coefSelf:"_T_MathRing|None" = coeffsTarget.get(power, None)
             if coefSelf is None: coeffsTarget[power] = coefOther
             else: coeffsTarget[power] = coefSelf + coefOther
@@ -200,10 +258,14 @@ class SimplePolynomial(Generic[_T_MathRing, _StrLiteral], SupportsMathRing):
         self.__degree = None
         return self
     
+    
     @classmethod
-    def __internalSub(cls, coeffsTarget:"dict[int, _T_MathRing]", coeffsOther:"dict[int, _T_MathRing]")->"dict[int, _T_MathRing]":
-        """performe the 'add' ops on the coeffs of `coeffsTarget` with the coeffs of `coeffsTarget`, returns `coeffsTarget`"""
+    def __internalSub(cls, 
+            coeffsTarget:"dict[int, _T_MathRing]", coeffsOther:"dict[int, _T_MathRing]",
+            additionalPower:int=0)->"dict[int, _T_MathRing]":
+        """perform `coeffsTarget` -= `coeffsOther` * X^`additionalPower`, returns `coeffsTarget`"""
         for (power, coefOther) in coeffsOther.items():
+            power += additionalPower
             coefSelf:"_T_MathRing|None" = coeffsTarget.get(power, None)
             if coefSelf is None: coeffsTarget[power] = coefOther
             else: coeffsTarget[power] = coefSelf - coefOther
@@ -212,47 +274,147 @@ class SimplePolynomial(Generic[_T_MathRing, _StrLiteral], SupportsMathRing):
     def __sub__(self, other:"SimplePolynomial[_T_MathRing, _StrLiteral]")->"SimplePolynomial[_T_MathRing, _StrLiteral]":
         if self.__varName != other.__varName:
             raise ValueError(f"can't add two SimplePolynomial with different variable name: {repr(self.__varName)} != {repr(other.__varName)}")
-        newCoeffs:"dict[int, _T_MathRing]" = SimplePolynomial.__internalAdd(self.__coeffs.copy(), other.__coeffs)
+        newCoeffs:"dict[int, _T_MathRing]" = SimplePolynomial.__internalSub(self.__coeffs.copy(), other.__coeffs)
         return SimplePolynomial(monomials=newCoeffs, variableName=self.__varName, _copy=False, degree=None)
     
     def __isub__(self, other:"SimplePolynomial[_T_MathRing, _StrLiteral]")->"SimplePolynomial[_T_MathRing, _StrLiteral]":
         if self.__varName != other.__varName:
             raise ValueError(f"can't add two SimplePolynomial with different variable name: {repr(self.__varName)} != {repr(other.__varName)}")
-        SimplePolynomial.__internalAdd(self.__coeffs, other.__coeffs)
+        SimplePolynomial.__internalSub(self.__coeffs, other.__coeffs)
         self.__degree = None
         return self
     
+    
+    
     @classmethod
-    def __internalMult(cls, coeffs1:"dict[int, _T_MathRing]", coeffs2:"dict[int, _T_MathRing]")->"dict[int, _T_MathRing]":
+    def __internalNaiveMult(cls, coeffs1:"dict[int, _T_MathRing]", coeffs2:"dict[int, _T_MathRing]")->"dict[int, _T_MathRing]":
         """performe the 'multiplication' ops on the coeffs of `coeffsTarget` with the coeffs of `coeffsTarget`, returns `coeffsTarget`"""
-        # TODO
-        return coeffs1
+        newCoeffs:"dict[int, _T_MathRing]" = {}
+        for (power1, coeff1)  in coeffs1.items():
+            for (power2, coeff2) in coeffs2.items():
+                currCoeff:"_T_MathRing|None" = newCoeffs.get(power1+power2, None)
+                if currCoeff is None:
+                    newCoeffs[power1+power2] = coeff1 * coeff2
+                else: newCoeffs[power1+power2] = currCoeff + (coeff1 * coeff2)
+        return newCoeffs
+    
+    @classmethod
+    def __internalSplitCoeffs(cls, 
+            coeffs:"dict[int, _T_MathRing]", K:int)->"tuple[dict[int, _T_MathRing], dict[int, _T_MathRing]]":
+        coeffs1:"dict[int, _T_MathRing]" = {}
+        coeffs0:"dict[int, _T_MathRing]" = {}
+        for (power, coeff) in coeffs.items():
+            if coeff == 0: continue # skip zero coeffs => optimize the poly
+            # => (coeff != 0)
+            if power >= K: coeffs1[power-K] = coeff
+            else: coeffs0[power] = coeff
+        return (coeffs1, coeffs0)
+    
+    @classmethod
+    def __internalFastMult(cls, coeffsA:"dict[int, _T_MathRing]", coeffsB:"dict[int, _T_MathRing]")->"dict[int, _T_MathRing]":
+        """performe the fast karatsuba 'multiplication' ops on the coeffs of `coeffsA` with the coeffs of `coeffsB`, returns the new coeffs"""
+        if (len(coeffsA) == 0) or (len(coeffsB) == 0):
+            # => (A us null) or (B is null) => return null poly ie. empty coeffs
+            return {}
+        
+        degreeA:int = SimplePolynomial.__internalComputeDegree(coeffsA) # O(N)
+        degreeB:int = SimplePolynomial.__internalComputeDegree(coeffsB) # O(N)
+        if degreeB > degreeA: # => swap A and B
+            (coeffsA, coeffsB) = (coeffsB, coeffsA)
+            (degreeA, degreeB) = (degreeB, degreeA)
+        # => deg(A) >= deg(B)
+        K:int = degreeA // 2
+        
+        if K < 8: # => prefer the naive methode (K < `arbitraryConstante`, 8 seems great)
+            return SimplePolynomial.__internalNaiveMult(coeffsA, coeffsB)
+        
+        # split  A = A1*X^k + A0  and  B = B1*X^k + B0
+        (coeffsA1, coeffsA0) = SimplePolynomial.__internalSplitCoeffs(coeffsA, K) # O(N)
+        (coeffsB1, coeffsB0) = SimplePolynomial.__internalSplitCoeffs(coeffsB, K) # O(N)
+        
+        # do all the intermediary calcs
+        coeffsC2 = SimplePolynomial.__internalFastMult(coeffsA1, coeffsB1) # O(K^log2(3))
+        coeffsC0 = SimplePolynomial.__internalFastMult(coeffsA0, coeffsB0) # O(K^log2(3))
+        coeffsL1 = SimplePolynomial.__internalSub(coeffsTarget=coeffsA1.copy(), coeffsOther=coeffsA0) # O(K)
+        coeffsL2 = SimplePolynomial.__internalSub(coeffsTarget=coeffsB1.copy(), coeffsOther=coeffsB0) # O(K)
+        del coeffsA1, coeffsA0, coeffsB1, coeffsB0
+        coeffsL3 = SimplePolynomial.__internalFastMult(coeffsL1, coeffsL2) # O(K^log2(3))
+        del coeffsL1, coeffsL2
+        coeffsL4 = SimplePolynomial.__internalAdd(coeffsTarget=coeffsC2.copy(), coeffsOther=coeffsC0) # O(N)
+        coeffsC1 = SimplePolynomial.__internalSub(coeffsTarget=coeffsL4.copy(), coeffsOther=coeffsL3) # O(N)
+        del coeffsL3, coeffsL4
+        # => only coeffs: (coeffsC2, coeffsC1, coeffsC0)
+        # compute: C2*x^(2k) + C1*x^k + C0 (do the ops on coeffsC0 to avoid the "+ C0")
+        SimplePolynomial.__internalAdd(coeffsTarget=coeffsC0, coeffsOther=coeffsC1, additionalPower=K)
+        del coeffsC1
+        SimplePolynomial.__internalAdd(coeffsTarget=coeffsC0, coeffsOther=coeffsC2, additionalPower=2*K)
+        del coeffsC2
+        
+        return coeffsC0 # := A * B
     
     def __mul__(self, other:"SimplePolynomial[_T_MathRing, _StrLiteral]")->"SimplePolynomial[_T_MathRing, _StrLiteral]":
         if self.__varName != other.__varName:
             raise ValueError(f"can't multiplicate two SimplePolynomial with different variable name: {repr(self.__varName)} != {repr(other.__varName)}")
-        newCoeffs:"dict[int, _T_MathRing]" = self.__internalMult(self.__coeffs, other.__coeffs)
+        newCoeffs:"dict[int, _T_MathRing]" = SimplePolynomial.__internalFastMult(self.__coeffs, other.__coeffs)
         return SimplePolynomial(monomials=newCoeffs, variableName=self.__varName, _copy=False, degree=None)
     
     def __imul__(self, other:"SimplePolynomial[_T_MathRing, _StrLiteral]")->"SimplePolynomial[_T_MathRing, _StrLiteral]":
         if self.__varName != other.__varName:
             raise ValueError(f"can't multiplicate two SimplePolynomial with different variable name: {repr(self.__varName)} != {repr(other.__varName)}")
-        self.__coeffs = self.__internalMult(self.__coeffs, other.__coeffs)
+        self.__coeffs = SimplePolynomial.__internalFastMult(self.__coeffs, other.__coeffs)
         self.__degree = None
         return self
+    
     
     
     @classmethod
     def __internalPow(cls, coeffs:"dict[int, _T_MathRing]", power:int)->"dict[int, _T_MathRing]":
         """performe the 'multiplication' ops on the coeffs of `coeffsTarget` with the coeffs of `coeffsTarget`, returns `coeffsTarget`"""
-        # TODO
-        return coeffs
+        if power <= 0:
+            for coeff in coeffs.values():
+                if not(coeff == 0):
+                    one:"_T_MathRing" = coeff**0
+                    break
+            else: # => didn't found a non null coef => null poly
+                raise ZeroDivisionError("tryed to compute (null poly) ** `power` with `power` <= 0  ")
+            coeffsOne:"dict[int, _T_MathRing]" = {0: one}
+            
+            if power == 0: return coeffsOne # 1*x^0  (1 of _T_MathRing)
+            # => computing 1 / (coeffs ** (-power))
+            return SimplePolynomial.__internalDiv(coeffsOne, SimplePolynomial.__internalPow(coeffs, -power))
+        # => (power >= 1)
+        # use the fast exponentiation algorithme
+        # consider power[i] = (power >> i) % 2
+        coeffsPow2i:"dict[int, _T_MathRing]" = coeffs
+        del coeffs
+        # find the first i with power % 2 == 1 (guarentied to end because power >= 1)
+        i = 0
+        while (power % 2) == 0:
+            coeffsPow2i = SimplePolynomial.__internalFastMult(coeffsPow2i, coeffsPow2i) # mayby replaced by a fast squaring function ?
+            power = power >> 1
+            i += 1
+            print(i, power, len(coeffsPow2i))
+            
+        coeffsResult = coeffsPow2i.copy()
+        while (power != 0):
+            if (power % 2) == 1:
+                coeffsResult = SimplePolynomial.__internalFastMult(coeffsResult, coeffsPow2i)
+            power = power >> 1
+            if power != 0:
+                coeffsPow2i = SimplePolynomial.__internalFastMult(coeffsPow2i, coeffsPow2i) # mayby replaced by a fast squaring function ?
+            i += 1
+            print(i, power, len(coeffsPow2i))
+        return coeffsResult
     
     def __pow__(self, power:int)->"SimplePolynomial[_T_MathRing, _StrLiteral]":
-        ...
+        newCoeffs:"dict[int, _T_MathRing]" = SimplePolynomial.__internalPow(self.__coeffs, power)
+        return SimplePolynomial(monomials=newCoeffs, variableName=self.__varName, _copy=False, degree=None)
     
-    def __ipow__(self, other:"SimplePolynomial[_T_MathRing, _StrLiteral]")->"SimplePolynomial[_T_MathRing, _StrLiteral]":
-        ...
+    def __ipow__(self, power:int)->"SimplePolynomial[_T_MathRing, _StrLiteral]":
+        self.__coeffs = SimplePolynomial.__internalPow(self.__coeffs, power)
+        self.__degree = None
+        return self
+    
     
     
     @classmethod
