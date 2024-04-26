@@ -109,7 +109,7 @@ class FinalClass():
     """make all attr of the sub classes final"""
     def __init_subclass__(cls, allow_setattr_overload:bool=False) -> None:
         if allow_setattr_overload: return None # => no checks to do
-        if getattr(cls, "__setattr__") != FinalClass.__setattr__:
+        if getattr(cls, "__setattr__") is not FinalClass.__setattr__:
             # => redefining __setattr__ in cls
             raise ValueError(f"the sub class: {cls} of {FinalClass} has modified __setattr__")
         # => all good
@@ -131,7 +131,7 @@ class PartialyFinalClass():
     def __init_subclass__(cls, allow_setattr_overload:bool=False) -> None:
         if allow_setattr_overload is False:
             # => check __setattr__
-            if getattr(cls, "__setattr__") != PartialyFinalClass.__setattr__:
+            if getattr(cls, "__setattr__") is not PartialyFinalClass.__setattr__:
                 # => redefining __setattr__ in cls
                 raise ValueError(f"the sub class: {cls} of {PartialyFinalClass} has modified __setattr__")
         # => __setattr_ is fine
@@ -172,3 +172,35 @@ class PartialyFinalClass():
         if (name in self.__class__.__finals__) and hasattr(self, name):
             raise AttributeError(f"Trying to set twice a the final attribute: {name}")
         super().__setattr__(name, value)
+
+
+
+class FreezableClass():
+    """make the sub classes frozen\n
+    you will initialize the frozen state with:\n
+        - super().__init__() => set to the default state (given to the class, if its None, __init__ do nothing)\n
+        - self._freez() / self._unfreez() will also set it to the desired state"""
+    __slots__ = ("__frozen", )
+    __initialFreez: "ClassVar[bool|None]"
+    def __init_subclass__(cls, initialFreezState:"bool|None", allow_setattr_overload:bool=False) -> None:
+        if (allow_setattr_overload is False) and (getattr(cls, "__setattr__") is not FreezableClass.__setattr__):
+            # => redefining __setattr__ in cls
+            raise ValueError(f"the sub class: {cls} of {FreezableClass} has modified __setattr__")
+        cls.__initialFreez = initialFreezState
+        
+    def __init__(self) -> None:
+        if self.__initialFreez is True: self._freeze()
+        elif self.__initialFreez is False: self._unfreeze()
+        # else => unsetted
+        super().__init__()
+
+    def __setattr__(self, attr:str, value:Any):
+       if self.__frozen is True:
+            raise AttributeError(f"Trying to set attribute on a frozen instance")
+       return super().__setattr__(attr, value)
+    
+    def _freeze(self)->None:
+        object.__setattr__(self, f"_{FreezableClass.__name__}__frozen", True)
+    def _unfreeze(self)->None:
+        object.__setattr__(self, f"_{FreezableClass.__name__}__frozen", False)
+
