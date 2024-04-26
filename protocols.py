@@ -1,4 +1,3 @@
-from abc import abstractclassmethod
 from collections.abc import (
     Awaitable, Iterable, Set as AbstractSet, 
     Sized, Container, Iterator, Collection,
@@ -7,7 +6,7 @@ from holo.__typing import (
     Protocol, TypeVar, Any, TypeAlias, Union, runtime_checkable,
     Mapping, Sequence, NamedTuple, TYPE_CHECKING, overload, Self,
     _PrettyPrintable, TracebackType, Callable, Concatenate, ParamSpec,
-    LiteralString, Literal,
+    LiteralString, Literal, ClassVar,
 )
 
 if TYPE_CHECKING:

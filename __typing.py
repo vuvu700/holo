@@ -9,7 +9,7 @@ from typing import (
     DefaultDict, Iterator, Type, Container,
     TYPE_CHECKING, AbstractSet, MutableMapping,
     Tuple, List, Dict, Set, MutableSequence,
-    OrderedDict, 
+    OrderedDict, ClassVar,
 )
 from typing import _GenericAlias # type: ignore
 if sys.version_info < (3, 11):
@@ -99,3 +99,76 @@ def isNamedTuple(obj:object)->TypeGuard[NamedTuple]:
 
 
 JsonTypeAlias = Union[None, bool, int, float, str, List["JsonTypeAlias"], Dict[str, "JsonTypeAlias"]]
+
+
+
+
+### to make some classes final or partialy final
+
+class FinalClass():
+    """make all attr of the sub classes final"""
+    def __init_subclass__(cls, allow_setattr_overload:bool=False) -> None:
+        if allow_setattr_overload: return None # => no checks to do
+        if getattr(cls, "__setattr__") != FinalClass.__setattr__:
+            # => redefining __setattr__ in cls
+            raise ValueError(f"the sub class: {cls} of {FinalClass} has modified __setattr__")
+        # => all good
+                    
+    def __setattr__(self, name: str, value: Any) -> None:
+        if hasattr(self, name):
+            raise AttributeError(f"Trying to set twice a the final attribute: {name}")
+        print(f"setting {name} to {value}")
+        super().__setattr__(name, value)
+
+
+
+
+class PartialyFinalClass():
+    """make all the attr in __finals__ (must be setted) of the sub classes final\n
+     will add in the class.__finals__ all the attrs in the __finals__ of its base classes (they must Inherit from this protocol)"""
+    __finals__: "ClassVar[set[str]]"
+    
+    def __init_subclass__(cls, allow_setattr_overload:bool=False) -> None:
+        if allow_setattr_overload is False:
+            # => check __setattr__
+            if getattr(cls, "__setattr__") != PartialyFinalClass.__setattr__:
+                # => redefining __setattr__ in cls
+                raise ValueError(f"the sub class: {cls} of {PartialyFinalClass} has modified __setattr__")
+        # => __setattr_ is fine
+        if hasattr(cls, "__finals__") is False:
+            raise AttributeError(f"couldn't initialize the class: {cls}: it don't implement correctly the partialy final protocol, the class attribut: '__finals__' is missing")
+        # => the class is valide !
+        # replace the names with the true name of each atrr
+        for name in cls.__finals__:
+            attrName = cls.__getAttName(name)
+            if attrName != name: # => wrong name in __finals__
+                cls.__finals__.remove(name)
+                cls.__finals__.add(attrName)
+            # else: => alredy in __finals__
+        # add the names from the base classes
+        cls.__addFinalAttrs_fromBases(cls.__bases__)
+    
+    @classmethod
+    def __addFinalAttrs_fromBases(cls, bases:"tuple[type[PartialyFinalClass], ...]")->None:
+        for baseClasse in bases:
+            if baseClasse is PartialyFinalClass: continue
+            if issubclass(baseClasse, PartialyFinalClass) is False:
+                continue
+            for attrName in baseClasse.__finals__:
+                if attrName in cls.__finals__:
+                    raise ValueError(f"can't add the final attribut: {repr(attrName)} from {baseClasse} twice on {cls}, it can be a collision betwin the __finals__ of its base classes")
+                cls.__finals__.add(attrName)
+            cls.__addFinalAttrs_fromBases(baseClasse.__bases__)
+    
+    @classmethod
+    def __getAttName(cls, name:str)->str:
+        if name.startswith("__") and not name.endswith("__"):
+            # => is a private attr
+            return f"_{cls.__name__}{name}"
+        return name
+    
+    def __setattr__(self, name: str, value: Any) -> None:
+        # print(f"called {self}.__settattr__({repr(name)}, {value})")
+        if (name in self.__class__.__finals__) and hasattr(self, name):
+            raise AttributeError(f"Trying to set twice a the final attribute: {name}")
+        super().__setattr__(name, value)
