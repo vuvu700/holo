@@ -1,3 +1,5 @@
+import time
+
 from holo.__typing import (
     TextIO, TypeVar, Callable, Literal,
 )
@@ -49,3 +51,11 @@ def printFuncName(func:"Callable[_P, _T]")->"Callable[_P, _T]":
         print(func.__name__)
         return func(*args, **kwargs)
     return newFunc
+
+
+def delayed(delay:float, callback:"Callable[_P, _T]")->"Callable[_P, _T]":
+    """add a `delay` (in seconds) before starting to call `callback`"""
+    def func(*args:_P.args, **kwargs:_P.kwargs)->_T:
+        time.sleep(delay)
+        return callback(*args, **kwargs)
+    return func

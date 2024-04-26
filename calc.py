@@ -1,4 +1,4 @@
-from math  import gcd, ceil, sqrt, factorial as fac, pi, exp
+from math  import gcd, ceil, sqrt, factorial as fac, pi, exp, erf
 from decimal import Decimal, getcontext as decimal_getContext
 
 from holo.__typing import Iterable, MutableSequence, TypeVar
@@ -142,6 +142,11 @@ def factorial(x:int)->int:
 def gaussCurve(x:float, omega:float=1.0, mu:float=0.0)->float:
     return (1 / (omega * sqrt(2*pi))) \
         * exp(-1/2 * ((x - mu) / omega)**2)
+
+
+def gaussCumulativeRepartition(x:float, omega:float=1.0, mu:float=0.0)->float:
+    return 0.5 * (1 + erf((x - mu) / (omega*(2**0.5))))
+
 
 
 def invertPermutation(permut:"list[int]")->"list[int]":

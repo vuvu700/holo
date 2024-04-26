@@ -19,6 +19,7 @@ if sys.version_info < (3, 11):
         ParamSpec, TypeAlias, Protocol,
         runtime_checkable, Concatenate,
         TypedDict, NotRequired, get_args,
+        override, get_origin,
     )
 else: from typing import (
         Literal, Self, TypeVarTuple,
@@ -26,12 +27,38 @@ else: from typing import (
         ParamSpec, TypeAlias, Protocol,
         runtime_checkable, Concatenate,
         TypedDict, NotRequired, get_args,
+        override, get_origin,
     )
 
 if TYPE_CHECKING:
     # => not executed
     from holo.protocols import SupportsPretty, SupportsStr, _T
     from holo.prettyFormats import _ObjectRepr
+
+# TODO
+'''
+def typeCheck(type_:"type[_T]|tuple[type[_T], ...]", value:Any)->"TypeGuard[_T]":
+    """intensive type checking, will performe in depth checks (not meant for speed, meant for accuracy)"""
+    if isinstance(type_, tuple):
+        return any(__internal_typeCheck(type_=subType, value=value) for subType in type_)
+    return __internal_typeCheck(type_, value)
+
+def foo(a:Any):
+    if typeCheck(list[Union[int, float]], a):
+        ...
+
+def __internal_typeCheck(type_:"type[_T]", value:Any)->"TypeGuard[_T]":
+    """internal function for typeCheck"""
+    if type_ == None: return value is None
+    if type_ == NamedTuple: 
+        return isNamedTuple(value)
+    if isinstance(type_, _GenericAlias) and getattr(type_, "__origin__") is Union:
+        # => type_ is an Union
+        types_ = cast("tuple[type[_T], ...]", getattr(type_, "__args__"))
+        if None in type_:
+            type_ = cast("tuple[type[_T], ...]", tuple(type(None) if t is None else t for t in type_))
+    return isinstance()
+'''
 
 
 def assertIsinstance(type_:"type[_T]|tuple[type[_T], ...]", value:Any)->"_T":
@@ -52,7 +79,7 @@ def assertListSubType(subType:"type[_T]|tuple[type[_T], ...]", valuesList:"list[
     for subValue in valuesList: assertIsinstance(subType, subValue)
     return valuesList
 
-def assertIterableSubType(subType:"type[_T]|tuple[type[_T], ...]", valuesList:"list[Any]")->"list[_T]":
+def assertIterableSubType(subType:"type[_T]|tuple[type[_T], ...]", valuesList:"Iterable[Any]")->"list[_T]":
     """return a list with the values in `valuesList` and assert that all its <value> respect assertIsinstance(subType, <value>)"""
     return [assertIsinstance(subType, subValue) for subValue in valuesList]
 

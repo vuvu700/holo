@@ -1,3 +1,4 @@
+from holo.__typing import Iterable
 
 def rot(msg:str, n:int=13, alphabet:"str|None"=None)->str:
     if alphabet is None:
@@ -43,4 +44,14 @@ def countPaterns(msg:"str|bytes", minSize:int=1, maxSize:int=5, minimunCount:int
 
     return result
 
+
+def rsa_cypher(message:"Iterable[int]", n:int, e:int)->"list[int]":
+    return [pow(m, e, mod=n) for m in message]
+
+def rsa_decypher(cypheredMessage:"Iterable[int]", n:int, d:int)->"list[int]":
+    return [pow(m, d, mod=n) for m in cypheredMessage] 
+
+def rsa_computePrivateKey(p:int, q:int, e:int)->int:
+    phi:int = (p-1) * (q-1)
+    return pow(e, exp=-1, mod=phi)
 

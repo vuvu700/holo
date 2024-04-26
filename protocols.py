@@ -54,8 +54,11 @@ class SupportsAnext(Protocol[_T_co]):
 class SupportsContext(Protocol):
     def __enter__(self)->Self: ...
     __exit__:"Callable[Concatenate[Self, ...], None]"
-
-
+    # def __exit__(self, exc_type:None, exc_value:None, traceback:None)->None: ...
+    # def __exit__(self, exc_type:"type[Exception]", exc_value:"Exception", traceback:"TracebackType")->"bool": ...
+    # def __exit__(self, exc_type:"type[Exception]|None", exc_value:"Exception|None", traceback:"TracebackType|None")->"None|bool": ...
+    # returns True to silence the erorr
+    
 # Comparison protocols
 
 class SupportsDunderLT(Protocol[_T_contra]):
