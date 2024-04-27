@@ -105,6 +105,12 @@ JsonTypeAlias = Union[None, bool, int, float, str, List["JsonTypeAlias"], Dict[s
 
 ### to make some classes final or partialy final
 
+def isPrivateAttr(name:str)->bool:
+    return (name.startswith("__") and not name.endswith("__"))
+
+def getAttrName(cls:type, name:str)->str:
+    return (f"_{cls.__name__}{name}" if isPrivateAttr(name) else name)
+
 class FinalClass():
     """make all attr of the sub classes final"""
     def __init_subclass__(cls, allow_setattr_overload:bool=False) -> None:
@@ -143,7 +149,7 @@ class PartialyFinalClass():
         # => the class is valide !
         # replace the names with the true name of each atrr
         for name in cls.__finals__:
-            attrName = cls.__getAttName(name)
+            attrName = getAttrName(cls, name)
             if attrName != name: # => wrong name in __finals__
                 cls.__finals__.remove(name)
                 cls.__finals__.add(attrName)
@@ -152,22 +158,15 @@ class PartialyFinalClass():
         cls.__addFinalAttrs_fromBases(cls.__bases__)
     
     @classmethod
-    def __addFinalAttrs_fromBases(cls, bases:"tuple[type[PartialyFinalClass], ...]")->None:
+    def __addFinalAttrs_fromBases(cls, bases:"tuple[type, ...]")->None:
         for baseClasse in bases:
             if baseClasse is PartialyFinalClass: continue
-            if issubclass(baseClasse, PartialyFinalClass) is False:
+            if not issubclass(baseClasse, PartialyFinalClass):
                 continue
             for attrName in baseClasse.__finals__:
                 if attrName in cls.__finals__:
                     raise ValueError(f"can't add the final attribut: {repr(attrName)} from {baseClasse} twice on {cls}, it can be a collision betwin the __finals__ of its base classes")
                 cls.__finals__.add(attrName)
-    
-    @classmethod
-    def __getAttName(cls, name:str)->str:
-        if name.startswith("__") and not name.endswith("__"):
-            # => is a private attr
-            return f"_{cls.__name__}{name}"
-        return name
     
     def __setattr__(self, name: str, value: Any) -> None:
         # print(f"called {self}.__settattr__({repr(name)}, {value})")

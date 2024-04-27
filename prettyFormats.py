@@ -9,6 +9,7 @@ from holo.__typing import (
     TypeVar, Sized, Literal, TypeGuard, 
     Sequence, _PrettyPrintable, assertIsinstance,
     isNamedTuple, CodeType, JsonTypeAlias, NoReturn,
+    ClassVar, getAttrName, cast,
 )
 from holo.protocols import _T, SupportsPretty, SupportsSlots
 
@@ -542,3 +543,90 @@ def toJSON_basicTypes(obj:"None|bool|int|float|str|object")->"str|NoReturn":
         elif type(obj) == bool: return ("true" if obj == True else "false")
         elif type(obj) in (int, float): return str(obj)
         else: raise TypeError(f"the value of the given type: {type(obj)} isn't supported (only support builtin types, no inheritance)")
+    
+
+
+
+class PrettyfyClass():
+    """
+    ## when defining __prettyAttrs__ :
+    ### this is the behavious before adding attrs from bases (if getPrettyAttrs_fromBases)
+    - not defined -> use 'all'
+    - 'all' -> get all from __dict__ (if it has one) and __slots__ (if it has one) 
+        * only add the attrs from __slots__ if it was defined in the class, not from a super class
+        * 'all' will be changed to tuple[set[str], 'all'] in order to simplify the process
+    - set[str] -> add the attrs from the set (can be __slots__/__dict__ class)
+        * private attrs must be the ones from the class where __prettyAttrs__ is setted
+        * set[str] will be changed to tuple[set[str], None] in order to simplify the process
+    - tuple[set[str], 'all' | None] -> (this is what the class will have after the __init_subclass__)
+        * tuple[set[str], None] -> like - 'set[str]'
+        * tuple[set[str], 'all'] -> get all (like - 'all') plus all in the set (like - 'set[str]')
+    """
+    __prettyAttrs__: "ClassVar[set[str]|Literal['all']|tuple[set[str], Literal['all', None]]]"
+    
+    def __init_subclass__(cls, addPrettyAttrs_fromBases:bool=True) -> None:
+        if cls.__ownAttr("__prettyAttrs__") is False:
+            # => wasn't defined in the class
+            cls.__prettyAttrs__ = "all"
+        # => __prettyAttrs__ is the one of the class
+        if cls.__prettyAttrs__ == "all":
+            cls.__prettyAttrs__ = (set(), 'all')
+            if cls.__ownAttr("__slots__"): # => __slots__ class
+                cls.__prettyAttrs__[0].update(
+                    (getAttrName(cls, name) for name in getattr(cls, "__slots__")))
+            # else => __dict__ class => 'all' is sufficient, nothing more to add
+        else: # => set[str] | tuple[set[str], 'all']
+            # transform the names to attrNames
+            if isinstance(cls.__prettyAttrs__, tuple):
+                cls.__prettyAttrs__ = (
+                    set(getAttrName(cls, name) for name in cls.__prettyAttrs__[0]), 
+                    cls.__prettyAttrs__[1])
+            else: cls.__prettyAttrs__ = \
+                (set(getAttrName(cls, name) for name in cls.__prettyAttrs__), None)
+        # => the transformation of __prettyAttrs__ is done
+        
+        if addPrettyAttrs_fromBases is False:
+            return None # => finished here
+        # add the __prettyAttrs__ from the bases
+        set_getDict:"None|Literal['all']" = None
+        for baseClasse in cls.__bases__:
+            if (baseClasse is PrettyfyClass) or (): continue
+            if not issubclass(baseClasse, PrettyfyClass):
+                continue
+            attrsSet, getDict = cast("tuple[set[str], Literal['all', None]]", baseClasse.__prettyAttrs__)
+            cls.__prettyAttrs__[0].update(attrsSet)
+            if getDict == "all": set_getDict = 'all'
+            # else: => keep it
+        if set_getDict == 'all':
+            cls.__prettyAttrs__ = (cls.__prettyAttrs__[0], 'all')
+    
+    @classmethod
+    def __ownAttr(cls, attrName:str)->bool:
+        """return whether a __slots__ was defined on this class (False if inherited)"""
+        try: tmp = getattr(cls, attrName); delattr(cls, attrName)
+        except AttributeError: return False # => don't has the attr or don't own it
+        # => own the attr | put the value back where it come from ^^
+        setattr(cls, attrName, tmp)
+        return True 
+    
+    def __addAttrsToValueFromSet(self, attrsToValue:"dict[str, Any]", attrsSet:"set[str]")->None:
+        for attrName in attrsSet: 
+            attrsToValue[attrName] = getattr(self, attrName)
+    
+    def __getAttrsToValue(self)->"dict[str, Any]":
+        attrsToValue: "dict[str, Any]" = {}
+        if isinstance(self.__prettyAttrs__, tuple):
+            # => all from __dict__ and the set
+            if hasattr(self, "__dict__"): 
+                attrsToValue.update(self.__dict__)
+            self.__addAttrsToValueFromSet(attrsToValue, self.__prettyAttrs__[0])
+        elif isinstance(self.__prettyAttrs__, set):
+            self.__addAttrsToValueFromSet(attrsToValue, self.__prettyAttrs__)
+        else: # souldn't happend and must be ensured by __init_subclass__
+            raise TypeError(f"un expected type for self.__prettyAttrs__(of type: {type(self.__prettyAttrs__)}) = {self.__prettyAttrs__}")
+        return attrsToValue
+    
+    def __pretty__(self, *_, **__) -> _ObjectRepr:
+        return _ObjectRepr(
+            className=self.__class__.__name__, args=(),
+            kwargs=self.__getAttrsToValue())
