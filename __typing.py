@@ -117,7 +117,6 @@ class FinalClass():
     def __setattr__(self, name: str, value: Any) -> None:
         if hasattr(self, name):
             raise AttributeError(f"Trying to set twice a the final attribute: {name}")
-        print(f"setting {name} to {value}")
         super().__setattr__(name, value)
 
 
