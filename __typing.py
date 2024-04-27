@@ -135,7 +135,7 @@ class PartialyFinalClass():
                 # => redefining __setattr__ in cls
                 raise ValueError(f"the sub class: {cls} of {PartialyFinalClass} has modified __setattr__")
         # => __setattr_ is fine
-        if hasattr(cls, "__finals__") is False:
+        if ("__finals__" in cls.__dict__.keys()) is False:
             raise AttributeError(f"couldn't initialize the class: {cls}: it don't implement correctly the partialy final protocol, the class attribut: '__finals__' is missing")
         # => the class is valide !
         # replace the names with the true name of each atrr
