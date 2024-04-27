@@ -162,7 +162,6 @@ class PartialyFinalClass():
                 if attrName in cls.__finals__:
                     raise ValueError(f"can't add the final attribut: {repr(attrName)} from {baseClasse} twice on {cls}, it can be a collision betwin the __finals__ of its base classes")
                 cls.__finals__.add(attrName)
-            cls.__addFinalAttrs_fromBases(baseClasse.__bases__)
     
     @classmethod
     def __getAttName(cls, name:str)->str:
