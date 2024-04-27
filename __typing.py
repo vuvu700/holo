@@ -124,7 +124,7 @@ class FinalClass():
 
 
 class PartialyFinalClass():
-    """make all the attr in __finals__ (must be setted) of the sub classes final\n
+    """make 'final' all the attr in __finals__ (must be setted at least once) of the sub classes of PartialyFinalClass\n
      will add in the class.__finals__ all the attrs in the __finals__ of its base classes (they must Inherit from this protocol)"""
     __finals__: "ClassVar[set[str]]"
     
@@ -137,6 +137,10 @@ class PartialyFinalClass():
         # => __setattr_ is fine
         if ("__finals__" in cls.__dict__.keys()) is False:
             raise AttributeError(f"couldn't initialize the class: {cls}: it don't implement correctly the partialy final protocol, the class attribut: '__finals__' is missing")
+        # => __finals__ has at least be defined once
+        if "__finals__" not in cls.__dict__.keys():
+            # => the class don't re-define it => no new finals
+            cls.__finals__ = set()
         # => the class is valide !
         # replace the names with the true name of each atrr
         for name in cls.__finals__:
