@@ -560,14 +560,14 @@ class PrettyfyClass(ClassFactory):
     - tuple[(1), (2)] -> (this is what the class will have after the __init_subclass__)
         * (1) set[str] -> (like - 'set[str]'),
         * (2) bool: True -> get all from the self.__dict__ | False -> do nothing"""
-    __prettyAttrs__: "ClassVar[set[str]|Literal['all']|tuple[set[str], bool]]"
+    __prettyAttrs__: "ClassVar[list[str]|Literal['all']|tuple[list[str], bool]]"
     __slots__ = tuple()
     
     def __init_subclass__(cls:"type[ClassFactory]", **kwargs)->None:
         ClassFactory._ClassFactory__registerFactoryUser(cls, **kwargs)
     
     @staticmethod
-    def _ClassFactory__initSubclass(subClass:"type[PrettyfyClass]", addPrettyAttrs_fromBases:bool=True, **kwargs) -> None:
+    def _ClassFactory__initSubclass(subClass:"type[PrettyfyClass]", addPrettyAttrs_fromBases:"bool|None"=True, **kwargs) -> None:
         if _ownAttr(subClass, "__pretty__"):
             raise AttributeError(f"the sub class: {subClass} must not define a __pretty__ methode, it is done by the factory")
         if _ownAttr(subClass, "__prettyAttrs__") is False:
@@ -575,19 +575,19 @@ class PrettyfyClass(ClassFactory):
             subClass.__prettyAttrs__ = "all"
         # => __prettyAttrs__ is the one of the class
         if subClass.__prettyAttrs__ == "all":
-            subClass.__prettyAttrs__ = (set(), True)
+            subClass.__prettyAttrs__ = (list(), True)
             if _ownAttr(subClass, "__slots__"): # => __slots__ class
-                subClass.__prettyAttrs__[0].update(
+                subClass.__prettyAttrs__[0].extend(
                     (getAttrName(subClass, name) for name in getattr(subClass, "__slots__")))
             # else => __dict__ class => 'all' is sufficient, nothing more to add
         else: # => set[str] | tuple[set[str], 'all']
             # transform the names to attrNames
             if isinstance(subClass.__prettyAttrs__, tuple):
                 subClass.__prettyAttrs__ = (
-                    set(getAttrName(subClass, name) for name in subClass.__prettyAttrs__[0]), 
+                    [getAttrName(subClass, name) for name in subClass.__prettyAttrs__[0]], 
                     subClass.__prettyAttrs__[1])
             else: # => set[str]
-                subClass.__prettyAttrs__ = (set(getAttrName(subClass, name) for name in subClass.__prettyAttrs__), False)
+                subClass.__prettyAttrs__ = ([getAttrName(subClass, name) for name in subClass.__prettyAttrs__], False)
         # => the transformation of __prettyAttrs__ is done
         
         if addPrettyAttrs_fromBases is False:
@@ -598,16 +598,16 @@ class PrettyfyClass(ClassFactory):
             if (baseClasse is PrettyfyClass) or (): continue
             if not issubclass(baseClasse, PrettyfyClass):
                 continue
-            attrsSet, getDict = cast("tuple[set[str], bool]", baseClasse.__prettyAttrs__)
-            subClass.__prettyAttrs__[0].update(attrsSet)
+            attrs, getDict = cast("tuple[list[str], bool]", baseClasse.__prettyAttrs__)
+            subClass.__prettyAttrs__[0].extend(attrs)
             if getDict == True: set_getDict = True
             # else: => keep it
         subClass.__prettyAttrs__ = (subClass.__prettyAttrs__[0], set_getDict)
     
     def __pretty__(self, *_, **__) -> _ObjectRepr:
         attrsToValue: "dict[str, Any]" = {}
-        attrsSet, getDict = cast("tuple[set[str], bool]", self.__prettyAttrs__)
-        for attrName in attrsSet: 
+        attrs, getDict = cast("tuple[list[str], bool]", self.__prettyAttrs__)
+        for attrName in attrs: 
             attrsToValue[attrName] = getattr(self, attrName)
         if (getDict is True) and hasattr(self, "__dict__"):
             attrsToValue.update(self.__dict__)
