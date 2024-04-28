@@ -1,6 +1,6 @@
 import sys
 
-from types import TracebackType, CodeType
+from types import TracebackType, CodeType, MethodType
 from typing import (
     Iterable, Any, Sequence, TextIO,
     Generic, TypeVar, ContextManager,
@@ -30,9 +30,11 @@ else: from typing import (
         override, get_origin,
     )
 
+
 if TYPE_CHECKING:
     # => not executed
-    from holo.protocols import SupportsPretty, SupportsStr, _T
+    print("hello")
+    from holo.protocols import SupportsPretty, SupportsStr, ClassFactoryProtocol, _T
     from holo.prettyFormats import _ObjectRepr
 
 # TODO
@@ -111,13 +113,84 @@ def isPrivateAttr(name:str)->bool:
 def getAttrName(cls:type, name:str)->str:
     return (f"_{cls.__name__}{name}" if isPrivateAttr(name) else name)
 
-class FinalClass():
+def _ownAttr(cls:type, attrName:str)->bool:
+    """return whether a `attrName` was defined on this class (False if inherited)\n
+    /!\\ BIG WARNING it "may" have side effects since it try to del the attr and put it back (use type. methodes)"""
+    try: 
+        tmp = object.__getattribute__(cls, attrName)
+        type.__delattr__(cls, attrName)
+    except AttributeError: 
+        return False # => don't has the attr or don't own it
+    # => own the attr | put the value back where it come from ^^
+    type.__setattr__(cls, attrName, tmp)
+    return True
+
+def set_classMethode(cls:type, baseFunction:"Callable[Concatenate[type, ...], Any]")->None:
+    temporary_type = type("temporary_type", tuple(), {baseFunction.__name__: classmethod(baseFunction)})
+    type.__setattr__(cls, baseFunction.__name__, object.__getattribute__(temporary_type, baseFunction.__name__))
+
+
+
+
+class ClassFactory():
+    """notify to other ClassFactory to call __init_subclass__ on it"""
+    __slots__ = tuple()
+    
+    __registered_factories: "set[type[ClassFactoryProtocol]]" = set()
+    __registered_subclasses: "DefaultDict[type[ClassFactory], set[type[ClassFactoryProtocol]]]" = DefaultDict(set)
+    """dict[subclass -> factories (they are stored in ClassFactory.__registered_factories)]"""
+    __NAME_initFactory: str = "_ClassFactory__initSubclass"
+    
+    def __init_subclass__(cls) -> None:
+        # assert the sub class is a valide ClassFactory
+        factory = ClassFactory.__validateFactory(cls)
+        # => a new ClassFactory 
+        ClassFactory.__registered_factories.add(factory)
+        ClassFactory.__registered_subclasses[cls].add(factory)
+        return None
+
+    @staticmethod
+    def __validateFactory(subClass:"type[ClassFactory]")->"type[ClassFactoryProtocol]":
+        if not issubclass(subClass, ClassFactory):
+            raise TypeError(f"the sub class: {subClass} must be a sub class of {ClassFactory}")
+        if (not _ownAttr(subClass, ClassFactory.__NAME_initFactory)) \
+                or (not callable(getattr(subClass, ClassFactory.__NAME_initFactory))):
+            raise AttributeError(f"the sub class: {subClass} must define a {ClassFactory.__NAME_initFactory} static methode")
+        if not _ownAttr(subClass, "__slots__"):
+            raise AttributeError(f"the sub class: {subClass} must define a __slots__ class attribut")
+        if not _ownAttr(subClass, "__init_subclass__"):
+            raise AttributeError(f"the sub class: {subClass} must define a __init_subclass__ (must register the sub class)")
+        return cast("type[ClassFactoryProtocol]", subClass) # => the sub class is a valide factory
+
+    @staticmethod
+    def _ClassFactory__registerFactoryUser(subClass:"type[ClassFactory]", **kwargs):
+        """register a sub class and call the factories on it"""
+        for base in subClass.__bases__:
+            factorys = ClassFactory.__registered_subclasses.get(base, None)
+            if factorys is not None:
+                ClassFactory.__registered_subclasses[subClass].update(factorys)
+        ClassFactory._ClassFactory__callFactories(subClass, **kwargs)
+
+    @staticmethod
+    def _ClassFactory__callFactories(subClass:"type[ClassFactory]", **kwargs)->None:
+        for factory in ClassFactory.__registered_subclasses[subClass]:
+            factory._ClassFactory__initSubclass(subClass, **kwargs)
+
+
+
+class FinalClass(ClassFactory):
     """make all attr of the sub classes final"""
-    def __init_subclass__(cls, allow_setattr_overload:bool=False) -> None:
+    __slots__ = tuple()
+    
+    def __init_subclass__(cls:"type[ClassFactory]", **kwargs)->None:
+        ClassFactory._ClassFactory__registerFactoryUser(cls, **kwargs)
+    
+    @staticmethod
+    def _ClassFactory__initSubclass(subClass:"type[FinalClass]", allow_setattr_overload:bool=False, **kwargs) -> None:
         if allow_setattr_overload: return None # => no checks to do
-        if getattr(cls, "__setattr__") is not FinalClass.__setattr__:
+        if getattr(subClass, "__setattr__") is not FinalClass.__setattr__:
             # => redefining __setattr__ in cls
-            raise ValueError(f"the sub class: {cls} of {FinalClass} has modified __setattr__")
+            raise ValueError(f"the sub class: {subClass} of {FinalClass} has modified __setattr__")
         # => all good
                     
     def __setattr__(self, name: str, value: Any) -> None:
@@ -128,34 +201,39 @@ class FinalClass():
 
 
 
-class PartialyFinalClass():
+class PartialyFinalClass(ClassFactory):
     """make 'final' all the attr in __finals__ (must be setted at least once) of the sub classes of PartialyFinalClass\n
      will add in the class.__finals__ all the attrs in the __finals__ of its base classes (they must Inherit from this protocol)"""
+    __slots__ = tuple()
     __finals__: "ClassVar[set[str]]"
     
-    def __init_subclass__(cls, allow_setattr_overload:bool=False) -> None:
+    def __init_subclass__(cls:"type[ClassFactory]", **kwargs)->None:
+        ClassFactory._ClassFactory__registerFactoryUser(cls, **kwargs)
+    
+    @staticmethod
+    def _ClassFactory__initSubclass(subClass:"type[PartialyFinalClass]", allow_setattr_overload:bool=False, **kwargs) -> None:
         if allow_setattr_overload is False:
             # => check __setattr__
-            if getattr(cls, "__setattr__") is not PartialyFinalClass.__setattr__:
+            if getattr(subClass, "__setattr__") is not PartialyFinalClass.__setattr__:
                 # => redefining __setattr__ in cls
-                raise ValueError(f"the sub class: {cls} of {PartialyFinalClass} has modified __setattr__")
+                raise ValueError(f"the sub class: {subClass} of {PartialyFinalClass} has modified __setattr__")
         # => __setattr_ is fine
-        if hasattr(cls, "__finals__") is False:
-            raise AttributeError(f"couldn't initialize the class: {cls}: it don't implement correctly the partialy final protocol, the class attribut: '__finals__' is missing")
+        if hasattr(subClass, "__finals__") is False:
+            raise AttributeError(f"couldn't initialize the class: {subClass}: it don't implement correctly the partialy final protocol, the class attribut: '__finals__' is missing")
         # => __finals__ has at least be defined once
-        if "__finals__" not in cls.__dict__.keys():
+        if "__finals__" not in subClass.__dict__.keys():
             # => the class don't re-define it => no new finals
-            cls.__finals__ = set()
+            subClass.__finals__ = set()
         # => the class is valide !
         # replace the names with the true name of each atrr
-        for name in cls.__finals__:
-            attrName = getAttrName(cls, name)
+        for name in subClass.__finals__:
+            attrName = getAttrName(subClass, name)
             if attrName != name: # => wrong name in __finals__
-                cls.__finals__.remove(name)
-                cls.__finals__.add(attrName)
+                subClass.__finals__.remove(name)
+                subClass.__finals__.add(attrName)
             # else: => alredy in __finals__
         # add the names from the base classes
-        cls.__addFinalAttrs_fromBases(cls.__bases__)
+        subClass.__addFinalAttrs_fromBases(subClass.__bases__)
     
     @classmethod
     def __addFinalAttrs_fromBases(cls, bases:"tuple[type, ...]")->None:
@@ -169,25 +247,31 @@ class PartialyFinalClass():
                 cls.__finals__.add(attrName)
     
     def __setattr__(self, name: str, value: Any) -> None:
-        # print(f"called {self}.__settattr__({repr(name)}, {value})")
         if (name in self.__class__.__finals__) and hasattr(self, name):
             raise AttributeError(f"Trying to set twice a the final attribute: {name}")
         super().__setattr__(name, value)
 
 
 
-class FreezableClass():
+class FreezableClass(ClassFactory):
     """make the sub classes frozen\n
     you will initialize the frozen state with:\n
         - super().__init__() => set to the default state (given to the class, if its None, __init__ do nothing)\n
         - self._freez() / self._unfreez() will also set it to the desired state"""
+    __slots__ = tuple()
     __slots__ = ("__frozen", )
     __initialFreez: "ClassVar[bool|None]"
-    def __init_subclass__(cls, initialFreezState:"bool|None", allow_setattr_overload:bool=False) -> None:
-        if (allow_setattr_overload is False) and (getattr(cls, "__setattr__") is not FreezableClass.__setattr__):
+    
+    def __init_subclass__(cls:"type[ClassFactory]", **kwargs)->None:
+        ClassFactory._ClassFactory__registerFactoryUser(cls, **kwargs)
+    
+    @staticmethod
+    def _ClassFactory__initSubclass(subClass:"type[FreezableClass]", initialFreezState:"bool|None", allow_setattr_overload:bool=False, **kwargs) -> None:
+        print("->>>", FreezableClass)
+        if (allow_setattr_overload is False) and (getattr(subClass, "__setattr__") is not FreezableClass.__setattr__):
             # => redefining __setattr__ in cls
-            raise ValueError(f"the sub class: {cls} of {FreezableClass} has modified __setattr__")
-        cls.__initialFreez = initialFreezState
+            raise ValueError(f"the sub class: {subClass} of {FreezableClass} has modified __setattr__")
+        subClass.__initialFreez = initialFreezState
         
     def __init__(self) -> None:
         if self.__initialFreez is True: self._freeze()

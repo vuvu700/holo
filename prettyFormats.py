@@ -8,8 +8,9 @@ from holo.__typing import (
     Mapping, Iterable, Sequence, AbstractSet,
     TypeVar, Sized, Literal, TypeGuard, 
     Sequence, _PrettyPrintable, assertIsinstance,
-    isNamedTuple, CodeType, JsonTypeAlias, NoReturn,
-    ClassVar, getAttrName, cast,
+    isNamedTuple, CodeType, JsonTypeAlias, NoReturn, 
+    ClassVar, getAttrName, cast, ClassFactory, _ownAttr,
+    FinalClass,
 )
 from holo.protocols import _T, SupportsPretty, SupportsSlots
 
@@ -543,11 +544,11 @@ def toJSON_basicTypes(obj:"None|bool|int|float|str|object")->"str|NoReturn":
         elif type(obj) == bool: return ("true" if obj == True else "false")
         elif type(obj) in (int, float): return str(obj)
         else: raise TypeError(f"the value of the given type: {type(obj)} isn't supported (only support builtin types, no inheritance)")
-    
 
 
 
-class PrettyfyClass():
+
+class PrettyfyClass(ClassFactory):
     """## when defining __prettyAttrs__ :
     ### this is the behavious before adding attrs from bases (if getPrettyAttrs_fromBases)
     - not defined -> use 'all'
@@ -561,51 +562,48 @@ class PrettyfyClass():
         * (1) set[str] -> (like - 'set[str]'),
         * (2) bool: True -> get all from the self.__dict__ | False -> do nothing"""
     __prettyAttrs__: "ClassVar[set[str]|Literal['all']|tuple[set[str], bool]]"
+    __slots__ = tuple()
     
-    def __init_subclass__(cls, addPrettyAttrs_fromBases:bool=True) -> None:
-        if cls.__ownAttr("__prettyAttrs__") is False:
+    def __init_subclass__(cls:"type[ClassFactory]", **kwargs)->None:
+        ClassFactory._ClassFactory__registerFactoryUser(cls, **kwargs)
+    
+    @staticmethod
+    def _ClassFactory__initSubclass(subClass:"type[PrettyfyClass]", addPrettyAttrs_fromBases:bool=True, **kwargs) -> None:
+        if _ownAttr(subClass, "__pretty__"):
+            raise AttributeError(f"the sub class: {subClass} must not define a __pretty__ methode, it is done by the factory")
+        if _ownAttr(subClass, "__prettyAttrs__") is False:
             # => wasn't defined in the class
-            cls.__prettyAttrs__ = "all"
+            subClass.__prettyAttrs__ = "all"
         # => __prettyAttrs__ is the one of the class
-        if cls.__prettyAttrs__ == "all":
-            cls.__prettyAttrs__ = (set(), True)
-            if cls.__ownAttr("__slots__"): # => __slots__ class
-                cls.__prettyAttrs__[0].update(
-                    (getAttrName(cls, name) for name in getattr(cls, "__slots__")))
+        if subClass.__prettyAttrs__ == "all":
+            subClass.__prettyAttrs__ = (set(), True)
+            if _ownAttr(subClass, "__slots__"): # => __slots__ class
+                subClass.__prettyAttrs__[0].update(
+                    (getAttrName(subClass, name) for name in getattr(subClass, "__slots__")))
             # else => __dict__ class => 'all' is sufficient, nothing more to add
         else: # => set[str] | tuple[set[str], 'all']
             # transform the names to attrNames
-            if isinstance(cls.__prettyAttrs__, tuple):
-                cls.__prettyAttrs__ = (
-                    set(getAttrName(cls, name) for name in cls.__prettyAttrs__[0]), 
-                    cls.__prettyAttrs__[1])
+            if isinstance(subClass.__prettyAttrs__, tuple):
+                subClass.__prettyAttrs__ = (
+                    set(getAttrName(subClass, name) for name in subClass.__prettyAttrs__[0]), 
+                    subClass.__prettyAttrs__[1])
             else: # => set[str]
-                cls.__prettyAttrs__ = (set(getAttrName(cls, name) for name in cls.__prettyAttrs__), False)
+                subClass.__prettyAttrs__ = (set(getAttrName(subClass, name) for name in subClass.__prettyAttrs__), False)
         # => the transformation of __prettyAttrs__ is done
         
         if addPrettyAttrs_fromBases is False:
             return None # => finished here
         # add the __prettyAttrs__ from the bases
-        set_getDict: bool = cls.__prettyAttrs__[1]
-        for baseClasse in cls.__bases__:
+        set_getDict: bool = subClass.__prettyAttrs__[1]
+        for baseClasse in subClass.__bases__:
             if (baseClasse is PrettyfyClass) or (): continue
             if not issubclass(baseClasse, PrettyfyClass):
                 continue
             attrsSet, getDict = cast("tuple[set[str], bool]", baseClasse.__prettyAttrs__)
-            cls.__prettyAttrs__[0].update(attrsSet)
+            subClass.__prettyAttrs__[0].update(attrsSet)
             if getDict == True: set_getDict = True
             # else: => keep it
-        cls.__prettyAttrs__ = (cls.__prettyAttrs__[0], set_getDict)
-        print(f"finished step 2 with __prettyAttrs__={cls.__prettyAttrs__}")
-    
-    @classmethod
-    def __ownAttr(cls, attrName:str)->bool:
-        """return whether a __slots__ was defined on this class (False if inherited)"""
-        try: tmp = getattr(cls, attrName); delattr(cls, attrName)
-        except AttributeError: return False # => don't has the attr or don't own it
-        # => own the attr | put the value back where it come from ^^
-        setattr(cls, attrName, tmp)
-        return True 
+        subClass.__prettyAttrs__ = (subClass.__prettyAttrs__[0], set_getDict)
     
     def __pretty__(self, *_, **__) -> _ObjectRepr:
         attrsToValue: "dict[str, Any]" = {}

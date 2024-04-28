@@ -6,7 +6,7 @@ from holo.__typing import (
     Protocol, TypeVar, Any, TypeAlias, Union, runtime_checkable,
     Mapping, Sequence, NamedTuple, TYPE_CHECKING, overload, Self,
     _PrettyPrintable, TracebackType, Callable, Concatenate, ParamSpec,
-    LiteralString, Literal, ClassVar,
+    LiteralString, Literal, ClassVar, ClassFactory,
 )
 
 if TYPE_CHECKING:
@@ -235,3 +235,10 @@ _T_MathMul = TypeVar("_T_MathMul", bound=SupportsMathMul)
 _T_MathRing = TypeVar("_T_MathRing", bound=SupportsMathRing)
 
 
+### class factories protocol
+@runtime_checkable
+class ClassFactoryProtocol(Protocol):
+    __slots__: "tuple[str, ...]"
+    def __init_subclass__(cls:"type[ClassFactory]", **kwargs)->None: ...
+    @staticmethod
+    def _ClassFactory__initSubclass(subClass:"type[ClassFactory]", **kwargs)->None: ...
