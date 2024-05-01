@@ -373,6 +373,9 @@ class DCycle(Generic[_T]):
         return f"{self.__class__.__name__}([{', '.join(map(repr, iter(self)))}])"
 
 
+
+
+
 # TODO: clean the code + 
 # idea n°1: test to remove the PartialyFinal since it reduce performances
 #   and anyway the user can get the nodes so he can edit the links if he want to
@@ -439,7 +442,13 @@ class Node_SkipList(Generic[_T, _T_key], FinalClass):
     
     @property
     def height(self)->int:
+        """user friendly way to get the height of the node :)"""
         return len(self.nexts)
+    
+    @property
+    def nextNode(self)->"Node_SkipList[_T, _T_key]":
+        """user friendly way to get the next node :)"""
+        return self.nexts[0]
     
     def insertAfter(self, nodesBefore:"list[Node_SkipList[_T, _T_key]]")->None:
         """the insertionNodes must respect: """
@@ -481,7 +490,7 @@ class SkipList(Generic[_T, _T_key], PartialyFinalClass):
      * get at index: O(log1/p(n)) *average* [not implemented yet]
      * search key: O(log1/p(n)) *average*
     """
-    __slots__ = ("head", "probabilty", "length", "keyFunc", )
+    __slots__ = ("head", "probabilty", "__length", "keyFunc", )
     __finals__ = {"head", "probabilty", "keyFunc", }
     
     def __init__(self, elements:"Iterable[_T]", 
@@ -491,7 +500,7 @@ class SkipList(Generic[_T, _T_key], PartialyFinalClass):
         if probability > 0.8:
             warnings.warn(f"be aware that using high probability ({probability} > 0.8) of new layers will create a lots of layers an tho slowing down the process")
         self.head: "Node_SkipList[_T, _T_key]" = Node_SkipList.createHEAD()
-        self.length: int = 0
+        self.__length: int = 0
         self.probabilty: float = probability
         self.keyFunc: "Callable[[_T], _T_key]" = eltToKey
         
@@ -503,10 +512,16 @@ class SkipList(Generic[_T, _T_key], PartialyFinalClass):
     def height(self)->int:
         return self.head.height
     
+    def length(self)->int:
+        return self.__length
+    
+    def __len__(self)->int:
+        return self.__length
+    
     def __computeMaxOptimalHeight(self)->int:
         """compute the optimal number of layers with the current number of elements\n
         use self.length+2 to avoid math error, return at least 1"""
-        return math.ceil(math.log((self.length+2) / self.probabilty, 1/self.probabilty))
+        return math.ceil(math.log((self.__length+2) / self.probabilty, 1/self.probabilty))
     
     def __getNextHeight(self)->int:
         """return the height of the next node to be added\n
@@ -540,7 +555,7 @@ class SkipList(Generic[_T, _T_key], PartialyFinalClass):
             self.__getLayersToKey(elt_key, beforeKey=firstOfKeys)
         Node_SkipList.insertNewNodeAfter(
             elt, elt_key, newNode_height, insertionNodes)
-        self.length += 1
+        self.__length += 1
     def append(self, elt:"_T")->None:
         """insert the elt after all the elements with the same key"""
         self.__addElement(elt, firstOfKeys=False)    
@@ -574,7 +589,7 @@ class SkipList(Generic[_T, _T_key], PartialyFinalClass):
         # => nodeToPop.key == key
         if removeNode is True:
             tagetedNode.detatchOf(nodesBefore)
-            self.length -= 1
+            self.__length -= 1
         return tagetedNode
     def removeNode(self, key:"_T_key")->"Node_SkipList[_T, _T_key]":
         """remove and return the first emeent with the same key, raise a KeyError if the key don't exist"""
@@ -622,7 +637,7 @@ class SkipList(Generic[_T, _T_key], PartialyFinalClass):
         beforeNodes: "list[Node_SkipList[_T, _T_key]]" = \
             self.__getLayersToKey(targetedNode.key, beforeKey=True)
         targetedNode.detatchOf(beforeNodes)
-        self.length -= 1
+        self.__length -= 1
         return targetedNode
     @overload
     def pop(self)->"_T":
@@ -713,7 +728,7 @@ class SkipList(Generic[_T, _T_key], PartialyFinalClass):
 
     def getFirstNode(self)->"Node_SkipList[_T, _T_key]":
         """return the first node of the list"""
-        if self.length == 0:
+        if self.__length == 0:
             raise LookupError("the list is empty, can't get the first element")
         # => not empty => HEAD.next != TAIL
         return self.head.nexts[0]
