@@ -140,6 +140,8 @@ def factorial(x:int)->int:
 
 
 def gaussCurve(x:float, omega:float=1.0, mu:float=0.0)->float:
+    """return the probability that you obtain the random value `x`\
+    with `omega` the standard distribution and `mu` the average"""
     return (1 / (omega * sqrt(2*pi))) \
         * exp(-1/2 * ((x - mu) / omega)**2)
 
