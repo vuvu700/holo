@@ -456,9 +456,9 @@ class Node_SkipList(Generic[_T, _T_key], FinalClass):
             self.nexts[level] = nodesBefore[level].nexts[level]
             nodesBefore[level].nexts[level] = self
     
-    def detatchOf(self, nodeBefore:"list[Node_SkipList[_T, _T_key]]")->None:
+    def detatchOf(self, nodesBefore:"list[Node_SkipList[_T, _T_key]]")->None:
         for level in range(self.height):
-            nodeBefore[level].nexts[level] = self.nexts[level]
+            nodesBefore[level].nexts[level] = self.nexts[level]
 
  
     @classmethod
@@ -649,20 +649,45 @@ class SkipList(Generic[_T, _T_key], PartialyFinalClass):
     def pop(self, key:"_T_key|None"=None)->"_T":
         return self.popNode(key).element
     
+    def __getNodesBeforesAndAfters(self, startKey:"_T_key", endKey:"_T_key",
+                                   )->"tuple[list[Node_SkipList[_T, _T_key]], list[Node_SkipList[_T, _T_key]]]":
+        """return the (nodesBefore, nodesAfter) such as:
+            * nodesBefore[level].key < startKey <= nodesBefore[level].nexts[level].key
+            * nodeAfter[level].key <= endKey < nodeAfter[level].nexts[level].key"""
+        return (self.__getLayersToKey(startKey, beforeKey=True), 
+                self.__getLayersToKey(endKey, beforeKey=False))
+    
     def getSubListView(self, startKey:"_T_key", endKey:"_T_key")->"SubSkipList[_T, _T_key]|None":
         """return the sub list with all the nodes of self such as: startKey <= node.key <= endKey\n
-        return None if the sublist is empty"""
-        startNode: "Node_SkipList[_T, _T_key]" = \
-            self.__getLayersToKey(startKey, beforeKey=True)[0].nexts[0]
-        endNode: "Node_SkipList[_T, _T_key]" = \
-            self.__getLayersToKey(endKey, beforeKey=False)[0]
+        return None if the sublist is empty\n
+        note: its in O(log1/p(self.length) to ge the view (not to iterate it)"""
+        nodesBefore, nodesEnd = self.__getNodesBeforesAndAfters(startKey, endKey)
+        startNode: "Node_SkipList[_T, _T_key]" = nodesBefore[0].nexts[0]
+        endNode: "Node_SkipList[_T, _T_key]" = nodesEnd[0]
+        del nodesBefore, nodesEnd
         if endNode.key < startNode.key:
             # => the sub list is empty
             return None
-        return SubSkipList(
-            startNode=self.__getLayersToKey(startKey, beforeKey=True)[0].nexts[0],
-            endNode=self.__getLayersToKey(endKey, beforeKey=False)[0],
-        )
+        # => the sub list is NOT empty
+        return SubSkipList(startNode=startNode, endNode=endNode)
+    
+    def popSubList(self, startKey:"_T_key", endKey:"_T_key")->"SubSkipList[_T, _T_key]|None":
+        """return and delete from self the sub list with all the nodes of self such as: startKey <= node.key <= endKey\n
+        return None if the sublist is empty\n
+        note: its in O(log1/p(length of the list) + (length of the sub list))"""
+        nodesBefore, nodesEnd = self.__getNodesBeforesAndAfters(startKey, endKey)
+        startNode: "Node_SkipList[_T, _T_key]" = nodesBefore[0].nexts[0]
+        endNode: "Node_SkipList[_T, _T_key]" = nodesEnd[0]
+        del nodesEnd
+        if endNode.key < startNode.key:
+            # => the sub list is empty
+            return None
+        # => the sub list is NOT empty
+        subList: "SubSkipList[_T, _T_key]" = SubSkipList(startNode=startNode, endNode=endNode)
+        # detach nodes from self
+        for node in subList.iterNodes(): 
+            node.detatchOf(nodesBefore)
+        return subList
     
     def __ensureHeight(self, requiredHeight:int)->None:
         """makes sure that there is enought layers, create new leayers if needed"""
