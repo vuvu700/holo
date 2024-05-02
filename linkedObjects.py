@@ -440,6 +440,7 @@ class Node_SkipList(Generic[_T, _T_key], FinalClass):
             newNode.prevs.append(nodesBefore[level])
             newNode.nexts.append(nodesBefore[level].nexts[level])
             nodesBefore[level].nexts[level] = newNode
+            newNode.nexts[level].prevs[level] = newNode
     
     @property
     def height(self)->int:
@@ -459,9 +460,7 @@ class Node_SkipList(Generic[_T, _T_key], FinalClass):
     def detatch(self)->None:
         """detatch the node from the prevs/nexts \
         and clear the links of self (self.height will be 0)"""
-        print(f"detatching node: {self}")
         for level in range(self.height):
-            print(f"detaching level n°{level}, prev:{self.prevs[level]} next: {self.nexts[level]}")
             nodeBefore = self.prevs[level]
             nodeAfter = self.nexts[level]
             nodeBefore.nexts[level] = nodeAfter
@@ -721,6 +720,7 @@ class SkipList(Generic[_T, _T_key]):
         """pop the last node of the list, raise a LookupError if the list is empty"""
         lastNode: "Node_SkipList[_T, _T_key]" = self.getLastNode()
         lastNode.detatch()
+        self.__length -= 1
         return lastNode
     def popLast(self)->"_T":
         """pop the last element of the list, raise a LookupError if the list is empty"""
@@ -741,6 +741,7 @@ class SkipList(Generic[_T, _T_key]):
         """return the first node of the list, raise a LookupError if the list is empty"""
         firstNode = self.getFirstNode()
         firstNode.detatch()
+        self.__length -= 1
         return firstNode
     def removeFirst(self)->"_T":
         """return the first element of the list, raise a LookupError if the list is empty"""
@@ -786,7 +787,7 @@ class SkipList(Generic[_T, _T_key]):
             self.__getLayersToKey(startKey, beforeKey=True)[0].nexts[0]
         endNode: "Node_SkipList[_T, _T_key]" = \
             self.__getLayersToKey(endKey, beforeKey=False)[0]
-        if endNode.key < startNode.key:
+        if (startNode is self.__tail) or (endNode.key < startNode.key):
             # => the sub list is empty
             return None
         # => the sub list is NOT empty
@@ -813,14 +814,25 @@ class SkipList(Generic[_T, _T_key]):
     
     ### iter the list ####
     
-    def iterNodes(self)->"Iterator[Node_SkipList[_T, _T_key]]":
+    def iterNodes(self, *, reverse:bool=False)->"Iterator[Node_SkipList[_T, _T_key]]":
         """yield all the nodes from the first to the last (exclude HEAD and TAIL)"""
         tail = self.__tail
-        currNode: "Node_SkipList[_T, _T_key]" = self.__head.nexts[0]
-        while currNode is not tail:
-            yield currNode
-            currNode = currNode.nexts[0]
-        return None
+        head = self.__head
+        currNode: "Node_SkipList[_T, _T_key]"
+        if reverse is False:
+            currNode = head.nexts[0]
+            while currNode is not tail:
+                yield currNode
+                currNode = currNode.nexts[0]
+            return None
+        
+        else: # => reverse order
+            currNode = tail.prevs[0]
+            while currNode is not head:
+                yield currNode
+                currNode = currNode.prevs[0]
+            return None
+            
     def __iter__(self)->"Iterator[_T]":
         """yield every element in the list"""
         for node in self.iterNodes():
@@ -914,6 +926,6 @@ class SubSkipList(Generic[_T, _T_key], FinalClass):
             yield node.element
 
 
-rand = random.random
-s = SkipList((rand() for _ in range(10_000)), 
-             lambda elt: elt, addElementMethode="extend")
+#rand = random.random
+#s = SkipList((rand() for _ in range(10_000)), 
+#             lambda elt: elt, addElementMethode="extend")
