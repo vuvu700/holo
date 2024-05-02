@@ -59,7 +59,7 @@ class SupportsContext(Protocol):
     # def __exit__(self, exc_type:"type[Exception]", exc_value:"Exception", traceback:"TracebackType")->"bool": ...
     # def __exit__(self, exc_type:"type[Exception]|None", exc_value:"Exception|None", traceback:"TracebackType|None")->"None|bool": ...
     # returns True to silence the erorr
-    
+
 # Comparison protocols
 
 class SupportsDunderLT(Protocol[_T_contra]):
@@ -125,6 +125,15 @@ class SupportsIterable(SupportsIter[_T_co], Protocol):
 class SupportsIterableSized(Protocol[_T_co]):
     def __iter__(self) -> "Iterator[_T_co]": ...
     def __len__(self) -> int: ...
+
+class SupportsSort(SupportsIterable[_T_co], Protocol):
+    """a protocol to extends the support of sort to other classes than lists"""
+    @overload
+    def sort(self, *, key: None = None, reverse: bool = False) -> None: ...
+    @overload
+    def sort(self, *, key: Callable[[Any], Any], reverse: bool = False) -> None: ...
+
+
 
 # This protocol is generic over the iterator type, while AsyncIterable is
 # generic over the type that is iterated over.

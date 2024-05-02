@@ -5,7 +5,7 @@ from holo.__typing import (
     Generic, Iterable, Generator, PartialyFinalClass, Iterator,
     overload, Literal, cast, Callable, FinalClass, TypeVar, Self,
 )
-from holo.protocols import _T, _T2, SupportsLowersComps
+from holo.protocols import _T, _T2, SupportsLowersComps, SupportsSort
 
 
 class EmptyError(Exception):
@@ -543,11 +543,24 @@ class SkipList(Generic[_T, _T_key], PartialyFinalClass):
     def insert(self, elt:"_T")->None:
         """insert the elt before all the elements with the same key"""
         self.__addElement(elt, firstOfKeys=True)
-        
+       
+    @overload 
+    def extend(self, elements:"SupportsSort[_T]", inPlaceSort:Literal[True])->None:
+        """a faster an more efficient procedure to append multiple elements\n
+        will sort the `elements` in place to avoid using more memory"""
+    @overload
     def extend(self, elements:"Iterable[_T]")->None:
         """a faster an more efficient procedure to append multiple elements\n
-        it will cache the elements in a list before inserting to speed up the process"""
-        elements_iter: "Iterator[_T]" = iter(sorted(elements, key=self.keyFunc))
+        it will cache the elements in a list before inserting to speed up the process\n
+        note: you can use the `inPlaceSort` parameter to avoid this issue"""
+    def extend(self, elements:"Iterable[_T]", inPlaceSort:bool=False)->None:
+        if inPlaceSort is True:
+            # => must support sort and be iterable
+            elements = cast("SupportsSort[_T]", elements)
+            elements.sort(key=self.keyFunc)
+        else: # => don't sort in place
+            elements = sorted(elements, key=self.keyFunc)
+        elements_iter: "Iterator[_T]" = iter(elements)
         # => they are now sorted (faster sort than using this structure)
         # get the nodes to insert after and insert this node 
         try: elt: _T = next(elements_iter)
