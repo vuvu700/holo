@@ -373,9 +373,6 @@ class DCycle(Generic[_T]):
         return f"{self.__class__.__name__}([{', '.join(map(repr, iter(self)))}])"
 
 
-
-
-
 # TODO: clean the code + 
 # idea n°1: test to remove the PartialyFinal since it reduce performances
 #   and anyway the user can get the nodes so he can edit the links if he want to
@@ -546,6 +543,41 @@ class SkipList(Generic[_T, _T_key], PartialyFinalClass):
     def insert(self, elt:"_T")->None:
         """insert the elt before all the elements with the same key"""
         self.__addElement(elt, firstOfKeys=True)
+        
+    def extend(self, elements:"Iterable[_T]")->None:
+        """a faster an more efficient procedure to append multiple elements\n
+        it will cache the elements in a list before inserting to speed up the process"""
+        elements_iter: "Iterator[_T]" = iter(sorted(elements, key=self.keyFunc))
+        # => they are now sorted (faster sort than using this structure)
+        # get the nodes to insert after and insert this node 
+        try: elt: _T = next(elements_iter)
+        except StopIteration: return None # => no elements to add
+        elt_key: "_T_key" = self.keyFunc(elt)
+        insertionNodes: "list[Node_SkipList[_T, _T_key]]" = \
+            self.__getLayersToKey(elt_key, beforeKey=False)
+        lastInsertedNode: "Node_SkipList[_T, _T_key]" = insertionNodes[0]
+        """might be HEAD, never TAIL"""
+        # insert the node here while it can
+        while True:
+            if lastInsertedNode.nexts[0].key <= elt_key:
+                # => can't append after the current insertion nodes
+                insertionNodes = self.__getLayersToKey(elt_key, beforeKey=False)
+                # => now you can :)
+            newNode_height: int = self.__getNextHeight()
+            self.__ensureHeight(newNode_height)
+            # len(insertionNodes) == old height of self
+            if newNode_height > len(insertionNodes):
+                # => extended the height, add some heads
+                insertionNodes.extend([self.head] * (newNode_height - len(insertionNodes)))
+            Node_SkipList.insertNewNodeAfter(elt, elt_key, newNode_height, insertionNodes)
+            lastInsertedNode = lastInsertedNode.nexts[0]
+            # update the insertion nodes with the last inserted node
+            for level in range(lastInsertedNode.height):
+                insertionNodes[level] = lastInsertedNode
+            # get the next element and get its key
+            try: elt = next(elements_iter)
+            except StopIteration: break # => added all elements
+            elt_key = self.keyFunc(elt)
 
     ### contain element/key ###
 
