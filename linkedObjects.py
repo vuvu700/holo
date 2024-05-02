@@ -734,7 +734,7 @@ class SkipList(Generic[_T, _T_key], PartialyFinalClass):
         # => the sub list is NOT empty
         return SubSkipList(startNode=startNode, endNode=endNode)
     
-    def popSubList(self, startKey:"_T_key", endKey:"_T_key")->"list[Node_SkipList[_T, _T_key]]":
+    def popNodesSubList(self, startKey:"_T_key", endKey:"_T_key")->"list[Node_SkipList[_T, _T_key]]":
         """return and delete from self the sub list with all the nodes of self such as: startKey <= node.key <= endKey\n
         note: its in O((length of the sub list) + log1/p(length of the list))"""
         subList: "SubSkipList[_T, _T_key]|None" = \
@@ -747,6 +747,11 @@ class SkipList(Generic[_T, _T_key], PartialyFinalClass):
         for node in poppedNodes:
             node.detatch()
         return poppedNodes
+    def popSubList(self, startKey:"_T_key", endKey:"_T_key")->"list[_T]":
+        """return and delete from self the sub list with all the nodes of self such as: startKey <= node.key <= endKey\n
+        note: its in O((length of the sub list) + log1/p(length of the list))"""
+        return [node.element for node in 
+                self.popNodesSubList(startKey=startKey, endKey=endKey)]
     
     ### iter the list ####
     
