@@ -2,11 +2,11 @@ import random, math
 import warnings
 
 from holo.__typing import (
-    Generic, Iterable, Generator, PartialyFinalClass, Iterator,
+    Generic, Iterable, Generator, Iterator,
     overload, Literal, cast, Callable, FinalClass, TypeVar, Self,
 )
 from holo.protocols import _T, _T2, SupportsLowersComps, SupportsSort
-
+from holo.prettyFormats import _ObjectRepr
 
 class EmptyError(Exception):
     """when an invalid action was tryed on an empty object"""
@@ -78,11 +78,11 @@ class NodeAuto(Node[_T]):
     """this sub class of Node will automaticaly attach the prev/next to self"""
     __slots__ = ()
     def __init__(self, 
-            value:"_T", next:"Node[_T]|None"=None, 
-            prev:"Node[_T]|None"=None)->None:
+            value:"_T", next:"NodeAuto[_T]|None"=None, 
+            prev:"NodeAuto[_T]|None"=None)->None:
         self.value: "_T" = value
-        self.next: "Node[_T]|None" = next
-        self.prev: "Node[_T]|None" = prev
+        self.next: "NodeAuto[_T]|None" = next
+        self.prev: "NodeAuto[_T]|None" = prev
         if next is not None: next.prev = self
         if prev is not None: prev.next = self
 
@@ -496,7 +496,11 @@ class Node_SkipList(Generic[_T, _T_key], FinalClass):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(element={repr(self.element)}, key={repr(self.key)}, height={repr(self.height)})"
 
-
+    def __pretty__(self, *_, **__)->"_ObjectRepr":
+        return _ObjectRepr(
+            self.__class__.__name__, args=(),
+            kwargs={"elt": self.element, "key": self.key, "height": self.height}
+        )
 
 class SkipList(Generic[_T, _T_key]):
     """a (stable) sorted list that have the following complexity:
@@ -914,6 +918,9 @@ class SkipList(Generic[_T, _T_key]):
         for node in self.iterNodes():
             counts[node.height-1] += 1
         return counts
+    
+    def __pretty__(self, *_, **__)->"_ObjectRepr":
+        return _ObjectRepr(self.__class__.__name__, args=tuple(self), kwargs={})
 
 
 class SubSkipList(Generic[_T, _T_key], FinalClass):
