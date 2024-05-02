@@ -74,6 +74,17 @@ class NodeDCycle(Node[_T]):
         return next
 
 
+class NodeAuto(Node[_T]):
+    """this sub class of Node will automaticaly attach the prev/next to self"""
+    __slots__ = ()
+    def __init__(self, 
+            value:"_T", next:"Node[_T]|None"=None, 
+            prev:"Node[_T]|None"=None)->None:
+        self.value: "_T" = value
+        self.next: "Node[_T]|None" = next
+        self.prev: "Node[_T]|None" = prev
+        if next is not None: next.prev = self
+        if prev is not None: prev.next = self
 
 
 class LinkedList(Generic[_T]):
@@ -400,12 +411,12 @@ _T_key = TypeVar("_T_key", bound=SupportsLowersComps)
 # HEAD <->   <-> 2 <-> 3 <-> 4 <-> 5 <-> 6 -> NIL
 # HEAD <-> 1 <-> 2 <-> 3 <-> 4 <-> 5 <-> 6 -> NIL
 
-#[HEAD]<->   <->   <->   <->   <->   <->   <-> NIL
-# HEAD <->   <->   <->[3]<->   <->   <->   <-> NIL
-# HEAD <->   <->   <->[3]<->   <->   <-> 6 <-> NIL
-# HEAD <->   <-> 2 <-> 3 <->   <->[5]<-> 6 <-> NIL
-# HEAD <->   <-> 2 <-> 3 <-> 4 <->[5]<-> 6 <-> NIL
-# HEAD <-> 1 <-> 2 <-> 3 <-> 4 <->[5]<->(6)<-> NIL
+#[HEAD]<->   <->   <->   <->   <->   <->   <->   <-> NIL
+# HEAD <->   <->   <->[3]<->   <->   <->   <->   <-> NIL
+# HEAD <->   <->   <->[3]<->   <->   <->   <-> 6 <-> NIL
+# HEAD <->   <-> 2 <-> 3 <->   <->   <->[5]<-> 6 <-> NIL
+# HEAD <->   <-> 2 <-> 3 <->   <-> 4 <->[5]<-> 6 <-> NIL
+# HEAD <-> 1 <-> 2 <-> 3 <-> 4 <-> 4 <->[5]<->(6)<-> NIL
 
 class Node_SkipList(Generic[_T, _T_key], FinalClass):
     """just hold the values and the next elements"""
@@ -485,7 +496,7 @@ class Node_SkipList(Generic[_T, _T_key], FinalClass):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(element={repr(self.element)}, key={repr(self.key)}, height={repr(self.height)})"
 
-import line_profiler
+
 
 class SkipList(Generic[_T, _T_key]):
     """a (stable) sorted list that have the following complexity:
@@ -534,7 +545,7 @@ class SkipList(Generic[_T, _T_key]):
         return self.__length
     
     ### add an element ###
-    @line_profiler.profile
+    
     def __addElement(self, elt:"_T", firstOfKeys:bool)->None:
         """add a new element to the list:
          * firstOfKeys=True -> insert before all the same keys
@@ -563,7 +574,7 @@ class SkipList(Generic[_T, _T_key]):
         """a faster an more efficient procedure to append multiple elements\n
         it will cache the elements in a list before inserting to speed up the process\n
         note: you can use the `inPlaceSort` parameter to avoid this issue"""
-    @line_profiler.profile
+
     def extend(self, elements:"Iterable[_T]", inPlaceSort:bool=False)->None:
         if inPlaceSort is True:
             # => must support sort and be iterable
