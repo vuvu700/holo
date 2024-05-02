@@ -126,6 +126,7 @@ class SupportsIterableSized(Protocol[_T_co]):
     def __iter__(self) -> "Iterator[_T_co]": ...
     def __len__(self) -> int: ...
 
+@runtime_checkable
 class SupportsSort(SupportsIterable[_T_co], Protocol):
     """a protocol to extends the support of sort to other classes than lists"""
     @overload

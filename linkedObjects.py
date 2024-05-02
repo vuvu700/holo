@@ -430,7 +430,7 @@ class Node_SkipList(Generic[_T, _T_key], FinalClass):
     @classmethod
     def insertNewNodeAfter(cls, elt:"_T", key:"_T_key", height:int,
                            nodesBefore:"list[Node_SkipList[_T, _T_key]]")->None:
-        # improves performance enough (and is avoid unallocated elts in self.nexts)
+        # improves performance enough and it avoid ... elts in self.nexts
         newNode = object.__new__(Node_SkipList)
         object.__setattr__(newNode, "element", elt)
         object.__setattr__(newNode, "key", key)
@@ -486,8 +486,9 @@ class Node_SkipList(Generic[_T, _T_key], FinalClass):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(element={repr(self.element)}, key={repr(self.key)}, height={repr(self.height)})"
 
+import line_profiler
 
-class SkipList(Generic[_T, _T_key], PartialyFinalClass):
+class SkipList(Generic[_T, _T_key]):
     """a (stable) sorted list that have the following complexity:
      * add: O(log1/p(n)) *average*
      * remove/pop: O(log1/p(n)) *average*
@@ -496,27 +497,37 @@ class SkipList(Generic[_T, _T_key], PartialyFinalClass):
      * get at index: O(log1/p(n)) *average* [not implemented yet]
      * search key: O(log1/p(n)) *average*
     """
-    __slots__ = ("head", "tail", "probabilty", "__length", "keyFunc", )
-    __finals__ = {"head", "tail", "probabilty", "keyFunc", }
+    __slots__ = ("__head", "__tail", "__probabilty", "__length", "__keyFunc", )
     
-    def __init__(self, elements:"Iterable[_T]", 
-                 eltToKey:"Callable[[_T], _T_key]", probability:float=1/4) -> None:
+    def __init__(self, elements:"Iterable[_T]", eltToKey:"Callable[[_T], _T_key]", probability:float=1/4, 
+                 addElementMethode:"Literal['extend', 'extend_sortInPlace', 'append']"="append") -> None:
+        """initialize the SkipList with the given element to key function and the given probability per layer\n
+        `elements` are the first elements to be added and they will be added with the methode of `addElementMethode`\n
+        note that `addElementMethode` only change how `elements` during the __init__, nothing else"""
         if (probability <= 0) or (probability >= 1):
             raise ValueError(f"the probability: {probability} of the SkipList must be in ]0, 1[")
         if probability > 0.8:
             warnings.warn(f"be aware that using high probability ({probability} > 0.8) of new layers will create a lots of layers an tho slowing down the process")
-        self.head: "Node_SkipList[_T, _T_key]" = Node_SkipList.createHEAD()
-        self.tail: "Node_SkipList[_T, _T_key]" = self.head.nextNode
+        self.__head: "Node_SkipList[_T, _T_key]" = Node_SkipList.createHEAD()
+        self.__tail: "Node_SkipList[_T, _T_key]" = self.__head.nextNode
         self.__length: int = 0
-        self.probabilty: float = probability
-        self.keyFunc: "Callable[[_T], _T_key]" = eltToKey
+        self.__probabilty: float = probability
+        self.__keyFunc: "Callable[[_T], _T_key]" = eltToKey
         # add the elements
-        for elt in elements:
-            self.append(elt)
+        if addElementMethode == "extend":
+            self.extend(elements)
+        elif addElementMethode == "extend_sortInPlace":
+            if not isinstance(elements, SupportsSort):
+                raise TypeError(f"in order to use the `addElementMethode`: {addElementMethode}, `elements` must support the {SupportsSort} protocol")
+            self.extend(elements, inPlaceSort=True)
+        elif addElementMethode == "append":
+            for elt in elements:
+                self.append(elt)
+        else: raise ValueError(f"invalide `addElementMethode`: {addElementMethode} parameter")
     
     @property
     def height(self)->int:
-        return self.head.height
+        return self.__head.height
     
     def length(self)->int:
         return self.__length
@@ -524,13 +535,13 @@ class SkipList(Generic[_T, _T_key], PartialyFinalClass):
         return self.__length
     
     ### add an element ###
-    
+    @line_profiler.profile
     def __addElement(self, elt:"_T", firstOfKeys:bool)->None:
         """add a new element to the list:
          * firstOfKeys=True -> insert before all the same keys
          * firstOfKeys=False -> append after all the same keys"""
         newNode_height: int = self.__getNextHeight()
-        elt_key: "_T_key" = self.keyFunc(elt)
+        elt_key: "_T_key" = self.__keyFunc(elt)
         self.__ensureHeight(newNode_height)
         insertionNodes: "list[Node_SkipList[_T, _T_key]]" = \
             self.__getLayersToKey(elt_key, beforeKey=firstOfKeys)
@@ -553,19 +564,20 @@ class SkipList(Generic[_T, _T_key], PartialyFinalClass):
         """a faster an more efficient procedure to append multiple elements\n
         it will cache the elements in a list before inserting to speed up the process\n
         note: you can use the `inPlaceSort` parameter to avoid this issue"""
+    @line_profiler.profile
     def extend(self, elements:"Iterable[_T]", inPlaceSort:bool=False)->None:
         if inPlaceSort is True:
             # => must support sort and be iterable
             elements = cast("SupportsSort[_T]", elements)
-            elements.sort(key=self.keyFunc)
+            elements.sort(key=self.__keyFunc)
         else: # => don't sort in place
-            elements = sorted(elements, key=self.keyFunc)
+            elements = sorted(elements, key=self.__keyFunc)
         elements_iter: "Iterator[_T]" = iter(elements)
         # => they are now sorted (faster sort than using this structure)
         # get the nodes to insert after and insert this node 
         try: elt: _T = next(elements_iter)
         except StopIteration: return None # => no elements to add
-        elt_key: "_T_key" = self.keyFunc(elt)
+        elt_key: "_T_key" = self.__keyFunc(elt)
         insertionNodes: "list[Node_SkipList[_T, _T_key]]" = \
             self.__getLayersToKey(elt_key, beforeKey=False)
         lastInsertedNode: "Node_SkipList[_T, _T_key]" = insertionNodes[0]
@@ -577,12 +589,13 @@ class SkipList(Generic[_T, _T_key], PartialyFinalClass):
                 insertionNodes = self.__getLayersToKey(elt_key, beforeKey=False)
                 # => now you can :)
             newNode_height: int = self.__getNextHeight()
-            self.__ensureHeight(newNode_height)
-            # len(insertionNodes) == old height of self
+            # len(insertionNodes) == self.height and it is faster than self.height
             if newNode_height > len(insertionNodes):
                 # => extended the height, add some heads
-                insertionNodes.extend([self.head] * (newNode_height - len(insertionNodes)))
+                insertionNodes.extend([self.__head] * (newNode_height - len(insertionNodes)))
+                self.__ensureHeight(newNode_height)
             Node_SkipList.insertNewNodeAfter(elt, elt_key, newNode_height, insertionNodes)
+            self.__length += 1
             lastInsertedNode = lastInsertedNode.nexts[0]
             # update the insertion nodes with the last inserted node
             for level in range(lastInsertedNode.height):
@@ -590,7 +603,7 @@ class SkipList(Generic[_T, _T_key], PartialyFinalClass):
             # get the next element and get its key
             try: elt = next(elements_iter)
             except StopIteration: break # => added all elements
-            elt_key = self.keyFunc(elt)
+            elt_key = self.__keyFunc(elt)
 
     ### contain element/key ###
 
@@ -602,7 +615,7 @@ class SkipList(Generic[_T, _T_key], PartialyFinalClass):
         except KeyError: return False
     def __contains__(self, elt:"_T")->bool:
         """tell whether this element is inside the list"""
-        key: _T_key = self.keyFunc(elt)
+        key: _T_key = self.__keyFunc(elt)
         try: # try to get the first node with this key
             node: "Node_SkipList[_T, _T_key]" = \
                 self.__getRemoveNodeFirst(key, removeNode=False)
@@ -621,7 +634,7 @@ class SkipList(Generic[_T, _T_key], PartialyFinalClass):
         targetedNode: "Node_SkipList[_T, _T_key]" = \
             self.__getLayersToKey(__key, beforeKey=True)[0]
         # => last node as: targetedNode.key < key <= targetedNode.nexts[level].key
-        if targetedNode is self.head:
+        if targetedNode is self.__head:
             raise KeyError(f"there is no node before the key: {__key}")
         if removeNode is True:
             targetedNode.detatch()
@@ -632,7 +645,7 @@ class SkipList(Generic[_T, _T_key], PartialyFinalClass):
         targetedNode: "Node_SkipList[_T, _T_key]" = \
             self.__getLayersToKey(__key, beforeKey=False)[0].nexts[0]
         # => first node as: key < targetedNode.key
-        if targetedNode is self.head:
+        if targetedNode is self.__head:
             raise KeyError(f"there is no node before the key: {__key}")
         if removeNode is True:
             targetedNode.detatch()
@@ -700,7 +713,7 @@ class SkipList(Generic[_T, _T_key], PartialyFinalClass):
         if self.__length == 0:
             raise LookupError("the list is empty, can't get the last element")
         # => not empty => HEAD.next != TAIL
-        return self.tail.prevs[0]
+        return self.__tail.prevs[0]
     def getLast(self)->"_T":
         """return the last element of the list, raise a LookupError if the list is empty"""
         return self.getLastNode().element
@@ -720,7 +733,7 @@ class SkipList(Generic[_T, _T_key], PartialyFinalClass):
         if self.__length == 0:
             raise LookupError("the list is empty, can't get the first element")
         # => not empty => HEAD.next != TAIL
-        return self.head.nexts[0]
+        return self.__head.nexts[0]
     def getFirst(self)->"_T":
         """return the first element of the list, raise a LookupError if the list is empty"""
         return self.getFirstNode().element
@@ -802,8 +815,8 @@ class SkipList(Generic[_T, _T_key], PartialyFinalClass):
     
     def iterNodes(self)->"Iterator[Node_SkipList[_T, _T_key]]":
         """yield all the nodes from the first to the last (exclude HEAD and TAIL)"""
-        tail = self.tail
-        currNode: "Node_SkipList[_T, _T_key]" = self.head.nexts[0]
+        tail = self.__tail
+        currNode: "Node_SkipList[_T, _T_key]" = self.__head.nexts[0]
         while currNode is not tail:
             yield currNode
             currNode = currNode.nexts[0]
@@ -820,8 +833,8 @@ class SkipList(Generic[_T, _T_key], PartialyFinalClass):
         nbNewLayers:int = requiredHeight - self.height
         if nbNewLayers <= 0:
             return 
-        self.head.nexts.extend([self.tail] * nbNewLayers)
-        self.tail.prevs.extend([self.head] * nbNewLayers)
+        self.__head.nexts.extend([self.__tail] * nbNewLayers)
+        self.__tail.prevs.extend([self.__head] * nbNewLayers)
     
     def __getLayersToKey(self, __key:"_T_key", beforeKey:bool)->"list[Node_SkipList[_T, _T_key]]":
         """return the nodes of each level where: 
@@ -832,7 +845,7 @@ class SkipList(Generic[_T, _T_key], PartialyFinalClass):
         note: HEAD might be in the layers but never TAIL"""
         self_height: int = self.height
         nodes: "list[Node_SkipList[_T, _T_key]]" = [...] * self_height
-        currNode: "Node_SkipList[_T, _T_key]" = self.head 
+        currNode: "Node_SkipList[_T, _T_key]" = self.__head 
         # => (HEAD < key) => (currNode.key < key)
         for level in range(self_height-1, -1, -1):
             nextNode: "Node_SkipList[_T, _T_key]" = currNode.nexts[level]
@@ -857,27 +870,20 @@ class SkipList(Generic[_T, _T_key], PartialyFinalClass):
                 # => currNode.key <= key < currNode.nexts[level].key
                 nodes[level] = currNode
         return nodes
-
-    def __computeMaxOptimalHeight(self)->int:
-        """compute the optimal number of layers with the current number of elements\n
-        use self.length+2 to avoid math error, return at least 1"""
-        pInv: float = 1 / self.probabilty
-        return math.ceil(math.log((self.__length+2) * pInv, pInv))
     
     def __getNextHeight(self)->int:
         """return the height of the next node to be added\n
         cost in `min{ O(1/(1-p)) ; O(log1/p(nbNodes)) }`"""
-        maxHeight = self.__computeMaxOptimalHeight()
-        rand = random.random; proba = self.probabilty
+        proba = self.__probabilty
+        pInv: float = 1 / proba
+        ## compute the optimal number of layers with the current number of elements
+        ## use self.length+2 to avoid math error, return at least 1
+        maxHeight = math.ceil(math.log((self.__length+2) * pInv, pInv))
+        # get a random height 
+        rand = random.random
         height = 1
         while (rand() < proba) and (height < maxHeight):
             height += 1
-        return height
-        # O(1) version, slower (3x) for low/normal probability
-        maxHeight:int = self.__computeMaxOptimalHeight()
-        maxLength = (1/self.probabilty)**maxHeight
-        rand = random.randint(2, max(math.floor(maxLength), 2))
-        height = 1 + maxHeight - math.ceil(math.log(rand, 1/self.probabilty))
         return height
    
     def __countNodesPerHeight(self)->"list[int]":
@@ -906,3 +912,8 @@ class SubSkipList(Generic[_T, _T_key], FinalClass):
     def __iter__(self)->"Iterator[_T]":
         for node in self.iterNodes():
             yield node.element
+
+
+rand = random.random
+s = SkipList((rand() for _ in range(10_000)), 
+             lambda elt: elt, addElementMethode="extend")
