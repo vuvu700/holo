@@ -94,6 +94,10 @@ DEFAULT_COMPACT_RULES:"_Pretty_CompactRules" = \
     _Pretty_CompactRules(newLine=True, indent=True, seqSpacing=False, mapSpacing=False, key=True)
 """when compacting, it compact newLines, indents and keys but don't compact the spacing"""
 
+MAX_COMPACT_RULES:"_Pretty_CompactRules" = \
+    _Pretty_CompactRules(newLine=True, indent=True, seqSpacing=True, mapSpacing=True, key=True)
+
+
 @basic__strRepr__
 class PrettyPrint_CompactArgs():
     __slots__ = ("compactSmaller", "compactLarger", "compactSpecifics", "keepReccursiveCompact", "compactRules")
@@ -378,10 +382,10 @@ def prettyPrint(
         compactArgs = PrettyPrint_CompactArgs(1, False)
         startCompactState = _PP_compactState(False, _force=None)
     elif compact is True: # => always force compact 
-        compactArgs = PrettyPrint_CompactArgs() # don't care
+        compactArgs = PrettyPrint_CompactArgs(compactRules=MAX_COMPACT_RULES)
         startCompactState = _PP_compactState(True, _force=True) 
     elif compact is False: # => never compact 
-        compactArgs = PrettyPrint_CompactArgs() # don't care
+        compactArgs = PrettyPrint_CompactArgs()
         startCompactState = _PP_compactState(False, _force=False) 
     elif isinstance(compact, PrettyPrint_CompactArgs):
         compactArgs = compact
@@ -536,12 +540,16 @@ def print_exception(error:BaseException, file:"TextIO|Literal['stderr', 'stdout'
     
 
 def getCurrentFuncCode(depth:int=1)->CodeType:
+    """the the code of the function called at the given depth:
+    a depth of 0 is THIS function (useless xd), 
+        1 (default) is the function that called THIS fucntion, ..."""
     return sys._getframe(depth).f_code
 
 def toJSON_basicTypes(obj:"None|bool|int|float|str|object")->"str|NoReturn":
         if type(obj) == str: return f"\"{obj.translate(JSON_STR_ESCAPE_TRANSLATE_TABLE)}\""
         elif type(obj) == bool: return ("true" if obj == True else "false")
         elif type(obj) in (int, float): return str(obj)
+        elif obj is None: return "null"
         else: raise TypeError(f"the value of the given type: {type(obj)} isn't supported (only support builtin types, no inheritance)")
 
 
