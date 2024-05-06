@@ -9,7 +9,7 @@ from typing import (
     DefaultDict, Iterator, Type, Container,
     TYPE_CHECKING, AbstractSet, MutableMapping,
     Tuple, List, Dict, Set, MutableSequence,
-    OrderedDict, ClassVar,
+    OrderedDict, ClassVar, Optional,
 )
 from typing import _GenericAlias # type: ignore
 if sys.version_info < (3, 11):
@@ -19,7 +19,7 @@ if sys.version_info < (3, 11):
         ParamSpec, TypeAlias, Protocol,
         runtime_checkable, Concatenate,
         TypedDict, NotRequired, get_args,
-        override, get_origin,
+        override, get_origin, Required
     )
 else: from typing import (
         Literal, Self, TypeVarTuple,
@@ -27,7 +27,7 @@ else: from typing import (
         ParamSpec, TypeAlias, Protocol,
         runtime_checkable, Concatenate,
         TypedDict, NotRequired, get_args,
-        override, get_origin,
+        override, get_origin, Required
     )
 
 
