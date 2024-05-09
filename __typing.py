@@ -134,7 +134,7 @@ def set_classMethode(cls:type, baseFunction:"Callable[Concatenate[type, ...], An
 
 class ClassFactory():
     """notify to other ClassFactory to call __init_subclass__ on it"""
-    __slots__ = tuple()
+    __slots__ = ()
     
     __registered_factories: "set[type[ClassFactoryProtocol]]" = set()
     __registered_subclasses: "DefaultDict[type[ClassFactory], set[type[ClassFactoryProtocol]]]" = DefaultDict(set)
@@ -180,7 +180,7 @@ class ClassFactory():
 
 class FinalClass(ClassFactory):
     """make all attr of the sub classes final"""
-    __slots__ = tuple()
+    __slots__ = ()
     
     def __init_subclass__(cls:"type[ClassFactory]", **kwargs)->None:
         ClassFactory._ClassFactory__registerFactoryUser(cls, **kwargs)
@@ -204,7 +204,7 @@ class FinalClass(ClassFactory):
 class PartialyFinalClass(ClassFactory):
     """make 'final' all the attr in __finals__ (must be setted at least once) of the sub classes of PartialyFinalClass\n
      will add in the class.__finals__ all the attrs in the __finals__ of its base classes (they must Inherit from this protocol)"""
-    __slots__ = tuple()
+    __slots__ = ()
     __finals__: "ClassVar[set[str]]"
     
     def __init_subclass__(cls:"type[ClassFactory]", **kwargs)->None:
@@ -258,7 +258,6 @@ class FreezableClass(ClassFactory):
     you will initialize the frozen state with:\n
         - super().__init__() => set to the default state (given to the class, if its None, __init__ do nothing)\n
         - self._freez() / self._unfreez() will also set it to the desired state"""
-    __slots__ = tuple()
     __slots__ = ("__frozen", )
     __initialFreez: "ClassVar[bool|None]"
     

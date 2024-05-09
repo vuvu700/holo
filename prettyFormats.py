@@ -569,7 +569,7 @@ class PrettyfyClass(ClassFactory):
         * (1) set[str] -> (like - 'set[str]'),
         * (2) bool: True -> get all from the self.__dict__ | False -> do nothing"""
     __prettyAttrs__: "ClassVar[list[str]|Literal['all']|tuple[list[str], bool]]"
-    __slots__ = tuple()
+    __slots__ = ()
     
     def __init_subclass__(cls:"type[ClassFactory]", **kwargs)->None:
         ClassFactory._ClassFactory__registerFactoryUser(cls, **kwargs)
