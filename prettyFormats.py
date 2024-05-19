@@ -6,7 +6,7 @@ from holo.calc import divmod_rec
 from holo.__typing import (
     Any, TextIO, NamedTuple, Callable, 
     Mapping, Iterable, Sequence, AbstractSet,
-    TypeVar, Sized, Literal, TypeGuard, 
+    TypeVar, Sized, Literal, TypeGuard, FrameType,
     Sequence, _PrettyPrintable, assertIsinstance,
     isNamedTuple, CodeType, JsonTypeAlias, NoReturn, 
     ClassVar, getAttrName, cast, ClassFactory, _ownAttr,
@@ -544,6 +544,23 @@ def getCurrentFuncCode(depth:int=1)->CodeType:
     a depth of 0 is THIS function (useless xd), 
         1 (default) is the function that called THIS fucntion, ..."""
     return sys._getframe(depth).f_code
+
+def getCurrentCallStack()->"list[FrameType]":
+    """return the current call stack (ommiting this function)"""
+    stack: "list[FrameType]" = []
+    # get the frame of teh caller
+    frame: "FrameType|None" = sys._getframe(1)
+    while frame is not None:
+        stack.append(frame)
+        frame = frame.f_back
+    return stack
+
+def printCallStack(callStack:"list[FrameType]")->None:
+    print("currentCallStack: ")
+    print(*[f"\tfile: {frame.f_code.co_filename} at line: {frame.f_lineno}"
+            for frame in callStack], sep="\n")
+    
+
 
 def toJSON_basicTypes(obj:"None|bool|int|float|str|object")->"str|NoReturn":
         if type(obj) == str: return f"\"{obj.translate(JSON_STR_ESCAPE_TRANSLATE_TABLE)}\""

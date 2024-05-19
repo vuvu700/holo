@@ -1,6 +1,9 @@
 import sys
 
-from types import TracebackType, CodeType, MethodType
+from types import (
+    TracebackType, CodeType, MethodType,
+    FrameType, 
+)
 from typing import (
     Iterable, Any, Sequence, TextIO,
     Generic, TypeVar, ContextManager,
@@ -19,7 +22,7 @@ if sys.version_info < (3, 11):
         ParamSpec, TypeAlias, Protocol,
         runtime_checkable, Concatenate,
         TypedDict, NotRequired, get_args,
-        override, get_origin, Required
+        override, get_origin, Required,
     )
 else: from typing import (
         Literal, Self, TypeVarTuple,
@@ -266,7 +269,6 @@ class FreezableClass(ClassFactory):
     
     @staticmethod
     def _ClassFactory__initSubclass(subClass:"type[FreezableClass]", initialFreezState:"bool|None", allow_setattr_overload:bool=False, **kwargs) -> None:
-        print("->>>", FreezableClass)
         if (allow_setattr_overload is False) and (getattr(subClass, "__setattr__") is not FreezableClass.__setattr__):
             # => redefining __setattr__ in cls
             raise ValueError(f"the sub class: {subClass} of {FreezableClass} has modified __setattr__")
