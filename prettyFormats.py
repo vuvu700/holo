@@ -557,7 +557,7 @@ def getCurrentCallStack()->"list[FrameType]":
 
 def printCallStack(callStack:"list[FrameType]")->None:
     print("currentCallStack: ")
-    print(*[f"\tfile: {frame.f_code.co_filename} at line: {frame.f_lineno}"
+    print(*[f"\tfile: {frame.f_code.co_filename}, line {frame.f_lineno}"
             for frame in callStack], sep="\n")
     
 
