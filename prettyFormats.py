@@ -1,6 +1,7 @@
 import sys
 import traceback
 from io import StringIO
+from datetime import timedelta
 
 from holo.calc import divmod_rec
 from holo.__typing import (
@@ -439,8 +440,10 @@ def prettyPrintToJSON(
         defaultStrFunc=defaultStrFunc, startIndent=startIndent,
     )
 
-def prettyTime(t:float)->str:
+def prettyTime(t:"float|timedelta")->str:
     """print a time value in a more redable way"""
+    if isinstance(t, timedelta):
+        t = t.total_seconds()
     if t == 0.: return "0 sec"
     if t < 1.0: # small scale
         if t < 0.1e-9: # less than nano scale
