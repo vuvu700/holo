@@ -308,3 +308,13 @@ class IterableSized(Generic[_T]):
         self.size = size
     def __iter__(self): return iter(self.elements)
     def __len__(self): return self.size
+
+
+def getDuplicated(allItems:"Iterable[_T]")->"set[_T]":
+    encountered: set[_T] = set()
+    duplicated: set[_T] = set()
+    for item in allItems:
+        if item not in encountered:
+            encountered.add(item)
+        else: duplicated.add(item)
+    return duplicated
