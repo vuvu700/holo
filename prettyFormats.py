@@ -365,7 +365,7 @@ def __prettyPrint_internal(
 def prettyPrint(
         *objs:"_PrettyPrintable", objsSeparator:"str|None"=" ", indentSequence:str=" "*4, 
         compact:"bool|None|PrettyPrint_CompactArgs"=None, stream:"TextIO|None"=None,
-        specificFormats:"dict[type[_T], Callable[[_T], str|Any]]|None"=None, end:"str|None"="\n",
+        specificFormats:"dict[type[_T], Callable[[_T|Any], str|Any]]|None"=None, end:"str|None"="\n",
         specificCompact:"set[type]|None"=None, defaultStrFunc:"Callable[[object], str]"=str, startIndent:int=0)->None:
     """/!\\ may not be as optimized as pprint but prettier print\n
     default `stream` -> stdout\n
@@ -417,7 +417,7 @@ def prettyPrint(
 
 def prettyString(
         *objs:"_PrettyPrintable", objsSeparator:"str|None"=" ", indentSequence:str=" "*4,
-        compact:"bool|None|PrettyPrint_CompactArgs"=False, specificFormats:"dict[type[_T], Callable[[_T], str|Any]]|None"=None,
+        compact:"bool|None|PrettyPrint_CompactArgs"=False, specificFormats:"dict[type[_T], Callable[[_T|Any], str|Any]]|None"=None,
         specificCompact:"set[type]|None"=None, defaultStrFunc:"Callable[[object], str]"=str, startIndent:int=0)->str:
     stream = StringIO()
     prettyPrint(
@@ -429,7 +429,7 @@ def prettyString(
 
 def prettyPrintToJSON(
         obj:"_PrettyPrintable", indentSequence:str=" "*4, compact:"bool|None|PrettyPrint_CompactArgs"=None, stream:"TextIO|None"=None,
-        specificFormats:"dict[type[_T], Callable[[_T], str|Any]]|None"=None, end:"str|None"="\n", specificCompact:"set[type]|None"=None,
+        specificFormats:"dict[type[_T], Callable[[_T|Any], str|Any]]|None"=None, end:"str|None"="\n", specificCompact:"set[type]|None"=None,
         defaultStrFunc:"Callable[[None|bool|int|float|str|object], str]|None"=None, startIndent:int=0)->None:
     """NOTE: don't check if the keys are str"""
     if defaultStrFunc is None:
