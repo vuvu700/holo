@@ -1247,16 +1247,30 @@ class SubSkipList(Generic[_T, _T_key], FinalClass):
         self.endNode:"Node_SkipList[_T, _T_key]" = endNode
         """last node INSIDE the the view"""
 
-    def iterNodes(self)->"Iterator[Node_SkipList[_T, _T_key]]":
-        node: "Node_SkipList[_T, _T_key]" = self.startNode
-        while node is not self.endNode:
+    def iterNodes(self, *, reverse:bool=False)->"Iterator[Node_SkipList[_T, _T_key]]":
+        node: "Node_SkipList[_T, _T_key]"
+        if reverse is False:
+            # => forward
+            node = self.startNode
+            while node is not self.endNode:
+                yield node
+                node = node.nexts[0]
+            # => node is self.endNode
             yield node
-            node = node.nexts[0]
-        # => node is self.endNode
-        yield node
-    
+        else: # => backward
+            node = self.endNode
+            while node is not self.startNode:
+                yield node
+                node = node.prevs[0]
+            # => node is self.startNode
+            yield node
+        
     def __iter__(self)->"Iterator[_T]":
-        for node in self.iterNodes():
+        for node in self.iterNodes(reverse=False):
+            yield node.element
+    
+    def __reversed__(self)->"Iterator[_T]":
+        for node in self.iterNodes(reverse=True):
             yield node.element
 
 
