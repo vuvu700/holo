@@ -4,7 +4,8 @@ import warnings
 from holo.__typing import (
     Generic, Iterable, Generator, Iterator,
     overload, Literal, cast, Callable, 
-    FinalClass, TypeVar, Self,
+    FinalClass, TypeVar, Self, override,
+    assertIsinstance, Sequence,
 )
 from holo.protocols import (
     _T, _T2, SupportsLowersComps, SupportsSort, SupportsIndex)
@@ -397,8 +398,8 @@ class BIGGEST():
     # => __eq__ = object.__eq__
 
 
-
 _T_key = TypeVar("_T_key", bound=SupportsLowersComps)
+
 
 # HEAD <->   <->   <->   <->   <->   <->  <-> NIL
 # HEAD <->   <->   <-> 3 <->   <->   <->  <-> NIL
@@ -432,15 +433,12 @@ _T_key = TypeVar("_T_key", bound=SupportsLowersComps)
 
 class Node_SkipList(Generic[_T, _T_key]):
     """just hold the values and the next elements"""
-    __slots__ = ("element", "key", "prevs", "nexts", "widths")
-    __TAIL__: "Node_SkipList|None" = None 
-    """there is only a single TAIL (avoid useless object creations)"""
+    __slots__ = ("element", "key", "prevs", "nexts", )
     # define the types of the attrs
     element: _T
     key: _T_key
-    prevs: "list[Node_SkipList[_T, _T_key]]"
-    nexts: "list[Node_SkipList[_T, _T_key]]"
-    widths: "list[int]"
+    prevs: "list[Self]"
+    nexts: "list[Self]"
         
     def __new__(cls, elt:"_T", key:"_T_key", height:int) -> Self:
         # don't use the __new__ of generic: slow
@@ -450,28 +448,23 @@ class Node_SkipList(Generic[_T, _T_key]):
         object.__setattr__(self, "key", key)
         object.__setattr__(self, "nexts", [NotImplemented] * height)
         object.__setattr__(self, "prevs", [NotImplemented] * height)
-        object.__setattr__(self, "widths", [NotImplemented] * height)
         return self
         
     @classmethod
-    def insertNewNodeAfter(cls, elt:"_T", key:"_T_key", height:int,
-                           nodesBefore:"list[Node_SkipList[_T, _T_key]]")->None:
+    def insertNewNodeAfter(cls, elt:"_T", key:"_T_key", height:int, nodesBefore:"list[Self]")->"Self":
         # doing so improves performance and it avoid all having ... elts in self.nexts
-        newNode = object.__new__(Node_SkipList)
+        newNode = object.__new__(cls)
         object.__setattr__(newNode, "element", elt)
         object.__setattr__(newNode, "key", key)
         object.__setattr__(newNode, "nexts", [])
         object.__setattr__(newNode, "prevs", [])
-        object.__setattr__(newNode, "widths", [NotImplemented] * height)
         # attache the nodes
         for level in range(height):
             newNode.prevs.append(nodesBefore[level])
             newNode.nexts.append(nodesBefore[level].nexts[level])
             nodesBefore[level].nexts[level] = newNode
             newNode.nexts[level].prevs[level] = newNode
-        # update the widths of the prevs and self (nexts don't needs it)
-        Node_SkipList._updateWidths([newNode] * height) # update self
-        Node_SkipList._updateWidths(nodesBefore) # update the prevs
+        return newNode
     
     @property
     def height(self)->int:
@@ -479,18 +472,19 @@ class Node_SkipList(Generic[_T, _T_key]):
         return len(self.nexts)
     
     @property
-    def nextNode(self)->"Node_SkipList[_T, _T_key]":
+    def nextNode(self)->"Self":
         """user friendly way to get the next node :)"""
         return self.nexts[0]
     
     @property
-    def prevNode(self)->"Node_SkipList[_T, _T_key]":
+    def prevNode(self)->"Self":
         """user friendly way to get the previous node :)"""
         return self.prevs[0]
     
-    def detatch(self, prevNodes:"list[Node_SkipList[_T, _T_key]]")->None:
+    def detatch(self, prevNodes:"list[Self]")->None:
         """detatch the node from the prevs/nexts \
-        and clear the links of self (self.height will be 0)"""
+        and clear the links of self (self.height will be 0)\n
+        `prevNodes` is not used if it isn't an indexed node"""
         for level in range(self.height):
             nodeBefore = self.prevs[level]
             nodeAfter = self.nexts[level]
@@ -499,12 +493,82 @@ class Node_SkipList(Generic[_T, _T_key]):
         # remove the acces to other nodes
         self.prevs.clear()
         self.nexts.clear()
+ 
+    @classmethod
+    def createHEAD(cls)->"Self":
+        """create a HEAD and a TAIL connected together"""
+        head: "Self" = cls(NotImplemented, key=SMALLEST(), height=0)
+        tail: "Self" = cls(NotImplemented, key=BIGGEST(), height=0)
+        head.nexts.append(tail)
+        tail.prevs.append(head)
+        return head
+        
+
+    def __str__(self) -> str:
+        if self.element is self.key:
+            return f"{self.__class__.__name__}(elt={self.element}, key is element, height={self.height})"
+        return f"{self.__class__.__name__}(elt={self.element}, key={self.key}, height={self.height})"
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(element={repr(self.element)}, key={repr(self.key)}, height={repr(self.height)})"
+
+    def __pretty__(self, *_, **__)->"_ObjectRepr":
+        return _ObjectRepr(
+            self.__class__.__name__, args=(),
+            kwargs={"elt": self.element, "key": self.key, 
+                    "height": self.height})
+
+
+
+class Node_SkipList_indexed(Node_SkipList[_T, _T_key]):
+    """just hold the values and the next elements"""
+    __slots__ = ("widths", )
+    # define the types of the attrs
+    prevs: "list[Node_SkipList_indexed[_T, _T_key]]"
+    nexts: "list[Node_SkipList_indexed[_T, _T_key]]"
+    widths: "list[int]"
+    
+    @override
+    def __new__(cls, elt:"_T", key:"_T_key", height:int) -> Self:
+        newNode: "Self" = super().__new__(cls, elt, key, height)
+        object.__setattr__(newNode, "widths", [NotImplemented] * height)
+        return newNode
+    
+    @override
+    @classmethod
+    def insertNewNodeAfter(cls, elt:"_T", key:"_T_key", height:int, nodesBefore:"list[Self]")->"Self":
+        newNode: "Self" = super().insertNewNodeAfter(elt, key, height, nodesBefore)
+        object.__setattr__(newNode, "widths", [NotImplemented] * height)
+        # update the widths of the prevs and self (nexts don't needs it)
+        newNode._updateWidths([newNode] * height) # update self
+        newNode._updateWidths(nodesBefore) # update the prevs
+        return newNode
+    
+    
+    
+    def detatch(self, prevNodes:"list[Self]")->None:
+        super().detatch(prevNodes)
         self.widths.clear()
         # update the widths of the prevs nodes (nexts don't needs it)
-        Node_SkipList._updateWidths(prevNodes)
+        self._updateWidths(prevNodes)
+    
+    def getIndex(self)->int:
+        if self.height == 0:
+            raise IndexError(f"can't compute the index of a node with no height")
+        totalWidth: int = -1 
+        # starts at -1 because it will count indexes from HEAD
+        #   ie. the real index is 1 less than what is computed
+        currentNode = self
+        while len(currentNode.prevs) != 0:
+            # because the only node expected to have 0 prevs is the HEAD
+            # => (currentNode is not HEAD)
+            level: int = (currentNode.height -1)
+            currentNode = currentNode.prevs[level]
+            totalWidth += currentNode.widths[level]
+        return totalWidth
+    
+    
 
-    @staticmethod
-    def _updateWidths(nodes:"list[Node_SkipList]")->None:
+    def _updateWidths(self, nodes:"list[Self]")->None:
         """update the widths of given nodes (for each height)\n
         note: the prevs can be detached of self ()"""
         # the width at height == 0 always stay 1
@@ -523,46 +587,28 @@ class Node_SkipList(Generic[_T, _T_key]):
                 width += curr.widths[level-1]
                 curr = curr.nexts[level-1]
             nodeToUpdate.widths[level] = width
- 
+    
+    @override
     @classmethod
-    def createHEAD(cls)->"Node_SkipList":
-        """create a HEAD and a TAIL connected together"""
-        head: "Node_SkipList" = Node_SkipList(NotImplemented, key=SMALLEST(), height=0)
-        tail: "Node_SkipList" = Node_SkipList(NotImplemented, key=BIGGEST(), height=0)
-        head.nexts.append(tail)
+    def createHEAD(cls)->"Node_SkipList_indexed":
+        head = super().createHEAD()
         head.widths.append(1)
-        tail.prevs.append(head)
         return head
         
-
     def __str__(self) -> str:
         if self.element is self.key:
             return f"{self.__class__.__name__}(elt={self.element}, key is element, height={self.height}, widths={self.widths})"
         return f"{self.__class__.__name__}(elt={self.element}, key={self.key}, height={self.height}, widths={self.widths})"
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(element={repr(self.element)}, key={repr(self.key)}, height={repr(self.height)}, widths={self.widths})"
-
-    def __pretty__(self, *_, **__)->"_ObjectRepr":
-        return _ObjectRepr(
-            self.__class__.__name__, args=(),
-            kwargs={"elt": self.element, "key": self.key, 
-                    "height": self.height, "widths": self.widths})
     
-    def getIndex(self)->int:
-        if self.height == 0:
-            raise IndexError(f"can't compute the index of a node with no height")
-        totalWidth: int = -1 
-        # starts at -1 because it will count indexes from HEAD
-        #   ie. the real index is 1 less than what is computed
-        currentNode = self
-        while len(currentNode.prevs) != 0: # (currentNode is not HEAD)
-            level: int = (currentNode.height -1)
-            currentNode = currentNode.prevs[level]
-            totalWidth += currentNode.widths[level]
-        return totalWidth
-        
+    @override
+    def __pretty__(self, *_, **__) -> _ObjectRepr:
+        objRepr = super().__pretty__(*_, **__)
+        objRepr.kwargs["widths"] = self.widths
+        return objRepr
 
-class SkipList(Generic[_T, _T_key]):
+class SkipList(Generic[_T, _T_key], Sequence):
     """a (stable) sorted list that have the following complexity:
      * add: O(log1/p(n)) *average*
      * remove/pop: O(log1/p(n)) *average*
@@ -571,18 +617,26 @@ class SkipList(Generic[_T, _T_key]):
      * get at index: O(log1/p(n)) *average* [not implemented yet]
      * search key: O(log1/p(n)) *average*
     """
-    __slots__ = ("__head", "__tail", "__probabilty", "__length", "__keyFunc", )
+    __slots__ = ("__head", "__tail", "__probabilty", "__length", "__keyFunc", 
+                 "__indexed", "__nodeClass", )
     
-    def __init__(self, elements:"Iterable[_T]", eltToKey:"Callable[[_T], _T_key]", probability:float=1/4, 
+    def __init__(self, elements:"Iterable[_T]", eltToKey:"Callable[[_T], _T_key]", 
+                 probability:float=1/4, indexed:bool=True,
                  addElementMethode:"Literal['extend', 'extend_sortInPlace', 'append']"="append") -> None:
         """initialize the SkipList with the given element to key function and the given probability per layer\n
         `elements` are the first elements to be added and they will be added with the methode of `addElementMethode`\n
-        note that `addElementMethode` only change how `elements` during the __init__, nothing else"""
+        note that `addElementMethode` only change how `elements` during the __init__, nothing else\n
+        `indexed` is whether the operations on the indices are allowed, when desactivated it is much 2-3x faster"""
         if (probability <= 0) or (probability >= 1):
             raise ValueError(f"the probability: {probability} of the SkipList must be in ]0, 1[")
         if probability > 0.8:
             warnings.warn(f"be aware that using high probability ({probability} > 0.8) of new layers will create a lots of layers an tho slowing down the process")
-        self.__head: "Node_SkipList[_T, _T_key]" = Node_SkipList.createHEAD()
+        # select the correct class for the nodes
+        self.__indexed: bool = indexed
+        self.__nodeClass: "type[Node_SkipList[_T, _T_key]]" = \
+            (Node_SkipList if indexed is False else Node_SkipList_indexed)
+        
+        self.__head: "Node_SkipList[_T, _T_key]" = self.__nodeClass.createHEAD()
         self.__tail: "Node_SkipList[_T, _T_key]" = self.__head.nextNode
         self.__length: int = 0
         self.__probabilty: float = probability
@@ -606,6 +660,10 @@ class SkipList(Generic[_T, _T_key]):
     def __len__(self)->int:
         return self.__length
     
+    @property
+    def isIndexed(self)->bool:
+        return self.__indexed
+    
     ### add an element ###
     
     def __addElement(self, elt:"_T", firstOfKeys:bool)->None:
@@ -617,7 +675,7 @@ class SkipList(Generic[_T, _T_key]):
         self.__ensureHeight(newNode_height)
         insertionNodes: "list[Node_SkipList[_T, _T_key]]" = \
             self.__getLayersToKey(elt_key, beforeKey=firstOfKeys)
-        Node_SkipList.insertNewNodeAfter(
+        self.__nodeClass.insertNewNodeAfter(
             elt, elt_key, newNode_height, insertionNodes)
         self.__length += 1
     def append(self, elt:"_T")->None:
@@ -666,7 +724,7 @@ class SkipList(Generic[_T, _T_key]):
                 # => extended the height, add some heads
                 insertionNodes.extend([self.__head] * (newNode_height - len(insertionNodes)))
                 self.__ensureHeight(newNode_height)
-            Node_SkipList.insertNewNodeAfter(elt, elt_key, newNode_height, insertionNodes)
+            self.__nodeClass.insertNewNodeAfter(elt, elt_key, newNode_height, insertionNodes)
             self.__length += 1
             lastInsertedNode = lastInsertedNode.nexts[0]
             # update the insertion nodes with the last inserted node
@@ -685,6 +743,7 @@ class SkipList(Generic[_T, _T_key]):
             self.__getRemoveNodeFirst(key, removeNode=False)
             return True
         except KeyError: return False
+    
     def __contains__(self, elt:"_T")->bool:
         """tell whether this element is inside the list"""
         key: _T_key = self.__keyFunc(elt)
@@ -709,8 +768,8 @@ class SkipList(Generic[_T, _T_key]):
         if targetedNode is self.__head:
             raise KeyError(f"there is no node before the key: {__key}")
         if removeNode is True:
-            targetedNode.detatch(
-                self.__internal_getNodesBefore(targetedNode))
+            targetedNode.detatch(([] if self.__indexed is False 
+                                  else self.__internal_getNodesBefore(targetedNode)))
             self.__length -= 1
         return targetedNode
     def __getRemoveNodeAfter(self, __key:"_T_key", removeNode:bool)->"Node_SkipList[_T, _T_key]":
@@ -747,8 +806,8 @@ class SkipList(Generic[_T, _T_key]):
         if (targetedNode.key != __key):
             raise KeyError(f"the key: {__key} is not in the skip-list")
         if removeNode is True:
-            targetedNode.detatch(
-                self.__internal_getNodesBefore(targetedNode))
+            targetedNode.detatch(([] if self.__indexed is False 
+                                  else self.__internal_getNodesBefore(targetedNode)))
             self.__length -= 1
         return targetedNode
     
@@ -797,7 +856,8 @@ class SkipList(Generic[_T, _T_key]):
     def popLastNode(self)->"Node_SkipList[_T, _T_key]":
         """pop the last node of the list, raise a LookupError if the list is empty"""
         lastNode: "Node_SkipList[_T, _T_key]" = self.getLastNode()
-        lastNode.detatch(self.__internal_getNodesBefore(lastNode))
+        lastNode.detatch(([] if self.__indexed is False 
+                          else self.__internal_getNodesBefore(lastNode)))
         self.__length -= 1
         return lastNode
     def popLast(self)->"_T":
@@ -881,7 +941,8 @@ class SkipList(Generic[_T, _T_key]):
         poppedNodes: "list[Node_SkipList[_T, _T_key]]" = \
             list(subList.iterNodes())
         nodesBefore: "list[Node_SkipList[_T, _T_key]]" = \
-            self.__internal_getNodesBefore(poppedNodes[0])
+            ([] if self.__indexed is False 
+             else self.__internal_getNodesBefore(poppedNodes[0]))
         # detach nodes from self
         for node in poppedNodes:
             node.detatch(nodesBefore)
@@ -896,7 +957,10 @@ class SkipList(Generic[_T, _T_key]):
     
     ### internals for the getitem / delitem
     
-    def __getRemoveNodeAtIndex(self, index:"SupportsIndex", *, removeNode:bool)->"Node_SkipList[_T, _T_key]":
+    def __getRemoveNodeAtIndex(self, index:"SupportsIndex", *, removeNode:bool)->"Node_SkipList_indexed[_T, _T_key]":
+        if self.__indexed is False:
+            raise IndexError(f"this SkipList was asked to don't use indices")
+        assert isinstance(self.__head, Node_SkipList_indexed)
         #determine the true index to get
         if self.__length == 0: 
             raise IndexError(f"impossible operation on an empty SkipList")
@@ -909,10 +973,10 @@ class SkipList(Generic[_T, _T_key]):
         currentIndex: int = -1 
         # -> -1 because it cant' be `targetedIndex` 
         #       (currently targeting head, and widths on head are 1+width from the first element)
-        currentNode: "Node_SkipList[_T, _T_key]" = self.__head
+        currentNode: "Node_SkipList_indexed[_T, _T_key]" = self.__head
         currentLevel: int = currentNode.height -1
         """must be <= to currents node's height (and >= 0)"""
-        nodesBefore: "list[Node_SkipList[_T, _T_key]]" = [NotImplemented] * self.height
+        nodesBefore: "list[Node_SkipList_indexed[_T, _T_key]]" = [NotImplemented] * self.height
         while currentIndex < targetedIndex:
             # => targeted node is further
             deltaIndex: int = targetedIndex - currentIndex
@@ -953,9 +1017,9 @@ class SkipList(Generic[_T, _T_key]):
     
     ### index related getitem / delitem (no setitem)
     
-    def getNodeAtIndex(self, index:"SupportsIndex")->"Node_SkipList[_T, _T_key]":
+    def getNodeAtIndex(self, index:"SupportsIndex")->"Node_SkipList_indexed[_T, _T_key]":
         return self.__getRemoveNodeAtIndex(index, removeNode=False)
-    def popNodeAtIndex(self, index:"SupportsIndex")->"Node_SkipList[_T, _T_key]":
+    def popNodeAtIndex(self, index:"SupportsIndex")->"Node_SkipList_indexed[_T, _T_key]":
         return self.__getRemoveNodeAtIndex(index, removeNode=True)
     def popAtIndex(self, index:"SupportsIndex")->"_T":
         return self.__getRemoveNodeAtIndex(index, removeNode=True).element
@@ -1003,18 +1067,89 @@ class SkipList(Generic[_T, _T_key]):
         """yield every element in the list"""
         for node in self.iterNodes():
             yield node.element
+            
+    def __reversed__(self)->"Iterator[_T]":
+        for node in self.iterNodes(reverse=True):
+            yield node.element
+    
+    @overload
+    def index(self, value:"_T")->int: ...
+    @overload
+    def index(self, value:"_T", start:int=0, stop:int=...)->int: ...
+    def index(self, value:"_T", start:int=0, stop:"int|None"=None)->int:
+        """return the index of the first item with the same `value`, \
+            and withing the `start` and `stop`"""
+        if self.__indexed is False:
+            raise IndexError(f"this SkipList was asked to don't use indices")
+        start, stop, _ = slice(start, stop).indices(self.__length)
+        if start >= stop: 
+            raise IndexError(f"empty range to search -> start:{start}, stop:{stop} (transformed indices)")
+        key: "_T_key" = self.__keyFunc(value)
+        candidates: "SubSkipList[_T, _T_key]|None" = self.getSubListView(startKey=key, endKey=key)
+        if (candidates is None): 
+            raise IndexError(f"value isn't in the SkipList (key not found for this value)")
+        # => candidates: SubSkipList[_T, _T_key] => some elements have the same key
+        startIndex: int = assertIsinstance(Node_SkipList_indexed, candidates.startNode).getIndex()
+        lastIndex: int = assertIsinstance(Node_SkipList_indexed, candidates.endNode).getIndex()
+        last: int = stop-1
+        """last index to search"""
+        del stop
+        ### determine if the candidates are in the search range
+        if (lastIndex < start) or (last < startIndex):
+            # => the search slice and the slice of the elts with the same key don't intersect
+            raise IndexError("key of the value not found inside the given interval")
+        # => the search interval and candidates interval intersect
+        # => (startIndex <= last) and (start <= lastIndex) and (start <= last) and (startIndex <= lastIndex)
+        ### narrow the search to the start and stop indices
+        if startIndex < start:
+            # => can start later, at index start
+            # startNode can be swaped because: (start <= lastIndex)
+            candidates.startNode = self.getNodeAtIndex(start)
+            startIndex = start
+            # => (start <= startIndex)
+        # => (start <= startIndex <= lastIndex) and (startIndex <= last) and (start <= last)
+        # -> (startIndex <= lastIndex) because: 
+        #       if (lastIndex < startIndex) then (old startIndex < start) 
+        #           then (startIndex == start) then (lastIndex < start) -> impossible 
+        if  last < lastIndex:
+            # => can stop earlier, at index last
+            # endNode can be swaped because: (startIndex <= lastIndex)
+            candidates.endNode = self.getNodeAtIndex(last)
+            lastIndex = last
+            # => (lastIndex <= last)
+        # => (start <= startIndex <= lastIndex <= last)
+        # => optimal search range
+        
+        # search for the value in the view
+        for deltaIndex, elt in enumerate(candidates.__iter__()):
+            if elt == value:
+                return startIndex + deltaIndex
+        # => no element with the searched value found
+        raise IndexError(f"value not found in given interval of the SkipList")
+        
+        
+        ########################### assert isinstance(..., Node_SkipList_indexed)
+        
+    def count(self, value:"_T")->int:
+        key: "_T_key" = self.__keyFunc(value)
+        candidates: "SubSkipList[_T, _T_key]|None" = self.getSubListView(startKey=key, endKey=key)
+        if (candidates is None): 
+            return 0
+        # => candidates: SubSkipList[_T, _T_key] => some elements have the same key
+        return sum(1 for elt in candidates if elt == value)
+        
+    
     
     ### utils methodes ###
-    
     def __internal_getNodesBefore(self, node:"Node_SkipList[_T, _T_key]")->"list[Node_SkipList[_T, _T_key]]":
+        """return all the nodes connecting to the """
         nodesBefore: "list[Node_SkipList[_T, _T_key]]" = [NotImplemented] * self.height
         assert node.height >= 1
-        for level, node in enumerate(node.prevs):
-            nodesBefore[level] = node
+        for level, prevNode in enumerate(node.prevs):
+            nodesBefore[level] = prevNode
         targetedHeight = node.height + 1
         currentNode: "Node_SkipList[_T, _T_key]" = node.prevs[-1]
         # => currentNode and targetedLevel are bound ! because height of node is >= 1
-        HEAD = self.__head
         while targetedHeight <= self.height:
             # => targted height is 
             # => search a node with an height >= targetedLevel
@@ -1033,9 +1168,13 @@ class SkipList(Generic[_T, _T_key]):
         if nbNewLayers <= 0:
             return 
         self.__head.nexts.extend([self.__tail] * nbNewLayers)
-        self.__head.widths.extend([NotImplemented] * nbNewLayers)
         self.__tail.prevs.extend([self.__head] * nbNewLayers)
-        Node_SkipList._updateWidths(self.__tail.prevs)
+        if self.__indexed is True:
+            assert isinstance(self.__head, Node_SkipList_indexed) \
+                and isinstance(self.__tail, Node_SkipList_indexed)
+            self.__head.widths.extend([NotImplemented] * nbNewLayers)
+            self.__tail._updateWidths(self.__tail.prevs)
+        
     
     def __getLayersToKey(self, __key:"_T_key", beforeKey:bool)->"list[Node_SkipList[_T, _T_key]]":
         """return the nodes of each level where: 
@@ -1087,7 +1226,7 @@ class SkipList(Generic[_T, _T_key]):
             height += 1
         return height
    
-    def __countNodesPerHeight(self)->"list[int]":
+    def _countNodesPerHeight(self)->"list[int]":
         counts: "list[int]" = [0] * self.height
         for node in self.iterNodes():
             counts[node.height-1] += 1
@@ -1098,12 +1237,15 @@ class SkipList(Generic[_T, _T_key]):
 
 
 class SubSkipList(Generic[_T, _T_key], FinalClass):
+    """a view on a SkipList"""
     __slots__ = ("startNode", "endNode", )
     
     def __init__(self, startNode:"Node_SkipList[_T, _T_key]", 
                  endNode:"Node_SkipList[_T, _T_key]") -> None:
         self.startNode:"Node_SkipList[_T, _T_key]" = startNode
+        """first node of the the view"""
         self.endNode:"Node_SkipList[_T, _T_key]" = endNode
+        """last node INSIDE the the view"""
 
     def iterNodes(self)->"Iterator[Node_SkipList[_T, _T_key]]":
         node: "Node_SkipList[_T, _T_key]" = self.startNode
