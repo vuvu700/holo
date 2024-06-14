@@ -13,7 +13,7 @@ from holo.__typing import (
     Generic, Iterator, TypeVar, Generator,
     Self, MutableMapping, Iterable, Tuple,
     LiteralString, Literal, overload, TypeAlias,
-    TYPE_CHECKING, Dict,
+    TYPE_CHECKING, Dict, cast,
 )
 from holo.protocols import (
     SupportsFileWrite, SupportsFileRead, 
@@ -486,7 +486,7 @@ class SaveArgs():
                 assert isinstance(obj, pandas.DataFrame), \
                     TypeError(f"in order to save an object with lib: {useLib}"
                             f"the object needs to be an instance of {pandas.DataFrame}")
-                obj.to_hdf(fileHdf, CONST_PANDAS_HDF_KEY)
+                obj.to_hdf(fileHdf, key=CONST_PANDAS_HDF_KEY)
         elif useLib == "joblib":
             import joblib
             with self.getFile(filePath, objectType, useLib, 'w') as fileNormal:
@@ -563,9 +563,10 @@ class SaveArgs():
         if saveLib == "pandas":
             # => hdf file
             import pandas
+            from pandas._typing import HDFCompLib
             return pandas.HDFStore(
                 filePath, mode=mode, complevel=compLevel,
-                complib=compLib)
+                complib=cast("HDFCompLib|None", compLib))
         # => lib != "pandas" => normal file | compress file
         if compLib is not None:
             # => compress file

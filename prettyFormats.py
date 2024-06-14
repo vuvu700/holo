@@ -12,7 +12,7 @@ from holo.__typing import (
     isNamedTuple, CodeType, JsonTypeAlias, NoReturn, 
     ClassVar, getAttrName, cast, ClassFactory, _ownAttr,
 )
-from holo.protocols import _T, SupportsPretty, SupportsSlots
+from holo.protocols import _T, SupportsPretty, SupportsSlots, SupportsWrite
 
 # TODO:
 # apporter les ameiorations nécessaires pour pouvoir specificCompact les _ObjectRepr en fonction du type
@@ -59,10 +59,10 @@ def basic__strRepr__(cls:_T_Type)->_T_Type:
 
 @prettyfyNamedTuple
 class _PrettyPrint_fixedArgs(NamedTuple):
-    stream:TextIO
-    compactArgs:"PrettyPrint_CompactArgs"
-    toStringFunc:"Callable[[object], str]"
-    indentSequence:str
+    stream: "SupportsWrite[str]"
+    compactArgs: "PrettyPrint_CompactArgs"
+    toStringFunc: "Callable[[object], str]"
+    indentSequence: str
 
     def getIndent(self, nbIndents:int)->str:
         return self.indentSequence * nbIndents
@@ -314,7 +314,8 @@ def __prettyPrint_internal(
         key=fixedArgs.compactArgs.compactRules.key, # keep the rule even when not compacting
     )
 
-    if isinstance(obj, SupportsPretty):
+    if isinstance(obj, SupportsPretty) and (type(obj) != type):
+        # don't allow types beacuse classes that supports __pretty__ can pass otherwise
         __prettyPrint_internal(
             obj=obj.__pretty__(compactRules=currentCompactRules), 
             prettyfyFromObj=(obj if prettyfyFromObj is None else prettyfyFromObj), 
@@ -364,7 +365,7 @@ def __prettyPrint_internal(
 
 def prettyPrint(
         *objs:"_PrettyPrintable", objsSeparator:"str|None"=" ", indentSequence:str=" "*4, 
-        compact:"bool|None|PrettyPrint_CompactArgs"=None, stream:"TextIO|None"=None,
+        compact:"bool|None|PrettyPrint_CompactArgs"=None, stream:"SupportsWrite[str]|None"=None,
         specificFormats:"dict[type[_T], Callable[[_T|Any], str|Any]]|None"=None, end:"str|None"="\n",
         specificCompact:"set[type]|None"=None, defaultStrFunc:"Callable[[object], str]"=str, startIndent:int=0)->None:
     """/!\\ may not be as optimized as pprint but prettier print\n
@@ -375,7 +376,9 @@ def prettyPrint(
     `specificFormats` all values of the exact given type will be transformed with the given function\n
         - 1) if the returned object IS the same object as in inputed object, use the normal procedure
         - 2) if the returned object is a string, directly write it\n"""
-    if stream is None: stream = sys.stdout
+    if stream is None: 
+        stream = assertIsinstance(SupportsWrite, sys.stdout)
+     
 
     compactArgs:"PrettyPrint_CompactArgs"
     startCompactState:"_PP_compactState"
@@ -533,8 +536,9 @@ def print_exception(error:BaseException, file:"TextIO|Literal['stderr', 'stdout'
     """print an exception like when it is raised (print the traceback)\n
     default `stream` -> stderr"""
     if file is None: file = sys.stderr
-    if file == "stdout": file = sys.stdout
-    if file == "stderr": file = sys.stderr
+    elif file == "stdout": file = sys.stdout
+    elif file == "stderr": file = sys.stderr
+    file = assertIsinstance(TextIO, file)
     print(
         "".join(traceback.format_tb(error.__traceback__))
         + f"{error.__class__.__name__}: {error}",
