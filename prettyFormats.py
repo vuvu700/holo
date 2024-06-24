@@ -1,6 +1,6 @@
 import sys
 import traceback
-from io import StringIO
+from io import StringIO, TextIOBase
 from datetime import timedelta
 
 from holo.calc import divmod_rec
@@ -532,19 +532,18 @@ def indent(text:str, nbIndents:int=1, indentSequence:str=" "*4)->str:
 
 
 
-def print_exception(error:BaseException, file:"TextIO|Literal['stderr', 'stdout']|None"=None)->None:
+def print_exception(error:BaseException, file:"SupportsWrite[str]|Literal['stderr', 'stdout']|None"=None)->None:
     """print an exception like when it is raised (print the traceback)\n
     default `stream` -> stderr"""
     if file is None: file = sys.stderr
     elif file == "stdout": file = sys.stdout
     elif file == "stderr": file = sys.stderr
-    file = assertIsinstance(TextIO, file)
+    file = assertIsinstance(SupportsWrite, file)
     print(
         "".join(traceback.format_tb(error.__traceback__))
         + f"{error.__class__.__name__}: {error}",
-        file=file
-    )
-    
+        file=file)
+
 
 def getCurrentFuncCode(depth:int=1)->CodeType:
     """the the code of the function called at the given depth:

@@ -622,7 +622,7 @@ class SkipList(Generic[_T, _T_key], Sequence):
     
     def __init__(self, elements:"Iterable[_T]", eltToKey:"Callable[[_T], _T_key]", 
                  probability:float=1/4, indexed:bool=True,
-                 addElementMethode:"Literal['extend', 'extend_sortInPlace', 'append']"="append") -> None:
+                 addElementMethode:"Literal['extend', 'extend_sortInPlace', 'append']"="extend") -> None:
         """initialize the SkipList with the given element to key function and the given probability per layer\n
         `elements` are the first elements to be added and they will be added with the methode of `addElementMethode`\n
         note that `addElementMethode` only change how `elements` during the __init__, nothing else\n
