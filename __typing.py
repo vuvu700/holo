@@ -145,12 +145,17 @@ class ClassFactory():
     __NAME_initFactory: str = "_ClassFactory__initSubclass"
     
     def __init_subclass__(cls) -> None:
+        ClassFactory.__manual_init_subclass__(cls)
+
+    @staticmethod
+    def __manual_init_subclass__(subClass:"type[ClassFactory]")->None:
         # assert the sub class is a valide ClassFactory
-        factory = ClassFactory.__validateFactory(cls)
+        factory = ClassFactory.__validateFactory(subClass)
         # => a new ClassFactory 
         ClassFactory.__registered_factories.add(factory)
-        ClassFactory.__registered_subclasses[cls].add(factory)
+        ClassFactory.__registered_subclasses[subClass].add(factory)
         return None
+
 
     @staticmethod
     def __validateFactory(subClass:"type[ClassFactory]")->"type[ClassFactoryProtocol]":
