@@ -414,12 +414,12 @@ class StopWatch():
             raise RuntimeError(f"called start() but it was alredy started")
         # => start clocking
         self.__stopTime = None
-        self.__nbMesuresStarted += 1
         t: float = (_time or perf_counter())
         self.__startTime = t
         if paused is False:
             self.__isMesuring = True
             self.__currentMesureStartTime = t
+            self.__nbMesuresStarted += 1
         else: # => start paused
             self.__lastMesureStopTime = t
         
