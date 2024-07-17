@@ -406,18 +406,22 @@ class StopWatch():
         return self.__pausedTime + (perf_counter() - self.__lastMesureStopTime)
     
     
-    def start(self, *, _time:"float|None"=None)->None:
+    def start(self, *, paused:bool=False, _time:"float|None"=None)->None:
         """start the clock (can only be called once before stoping the clock)\n
         `_time` to force a given start time"""
         if self.__startTime is not None:
             # => started
             raise RuntimeError(f"called start() but it was alredy started")
         # => start clocking
-        self.__lastMesureStopTime = self.__stopTime = None
-        self.__isMesuring = True
+        self.__stopTime = None
         self.__nbMesuresStarted += 1
         t: float = (_time or perf_counter())
-        self.__currentMesureStartTime = self.__startTime = t
+        self.__startTime = t
+        if paused is False:
+            self.__isMesuring = True
+            self.__currentMesureStartTime = t
+        else: # => start paused
+            self.__lastMesureStopTime = t
         
     def play(self, *, _time:"float|None"=None)->bool:
         """put the clock in mesuring state (return True if it wasn't mesuring before)\n
@@ -474,9 +478,9 @@ class StopWatch():
         """stop the clock (can only be called once after starting the clock)\n
         `_time` to force a given stop time"""
         t: float = (_time or perf_counter())
-        if self.started is False:
+        if self.__startTime is None:
             raise RuntimeError(f"the clock needs to be started first")
-        if self.stoped is True:
+        if self.__stopTime is not None:
             raise RuntimeError(f"the clock was alredy stoped")
         # => (has started) and (not stoped)
         if self.__isMesuring is True:
