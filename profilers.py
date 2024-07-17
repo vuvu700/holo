@@ -316,3 +316,180 @@ class DummyProfiler:
     def perttyStr(self, *_, **__)->str: return ""
     def wrap(self, func:Callable[_P, _T])->Callable[_P, _T]: return func
     def time(self, *_, **__)->float: return -1.0
+
+
+
+
+
+class StopWatch():
+    """a stopwatch class to mesure easily the execution of tasks that can be paused"""
+    __slots__ = (
+        "__totalMesureTime", "__pausedTime", "__isMesuring", "__nbMesuresStarted",
+        "__startTime", "__stopTime", "__currentMesureStartTime", "__lastMesureStopTime", )
+    
+    def __init__(self) -> None:
+        self.__totalMesureTime: float = 0.0
+        """total time of the mesures"""
+        self.__pausedTime: float = 0.0
+        """total time of the pauses"""
+        self.__isMesuring: bool = False
+        """the state it is currently mesuring\n
+        when the clock is started: 
+        - True -> (__currentMesureStartTime is not None)
+        - False -> (__lastMesureStopTime is not None)"""
+        self.__startTime: "float|None" = None
+        """the perfconter time when it started | None -> not setted"""
+        self.__stopTime: "float|None" = None
+        """the perfconter time when it stoped | None -> not setted"""
+        self.__currentMesureStartTime: "float|None" = None
+        """the perfconter time when it started the current mesure | None -> not setted"""
+        self.__lastMesureStopTime: "float|None" = None
+        """the perfconter time when it stoped the last mesure | None -> not setted"""
+        self.__nbMesuresStarted: int = 0
+        """the number of mesures started"""
+    
+    def reset(self)->None:
+        self.__init__()
+    
+    
+    @property
+    def isMesuring(self)->bool:
+        return self.__isMesuring
+    
+    @property
+    def nbMesuresStarted(self)->int:
+        return self.__nbMesuresStarted
+    
+    @property
+    def nbMesuresFinished(self)->int:
+        return self.__nbMesuresStarted - (self.__isMesuring)
+    
+    @property
+    def started(self)->bool:
+        return (self.__startTime is not None)
+    
+    @property
+    def stoped(self)->bool:
+        """return if the clock was started then stoped"""
+        return (self.started) and (self.__stopTime is not None)
+    
+    @property
+    def totalTime(self)->float:
+        """the total time since it started mesuring to the stoping (or now if not stoped)"""
+        if self.__startTime is None:
+            raise RuntimeError(f"you need to start the clock first")
+        # => has started
+        if self.__stopTime is not None:
+            # => has stoped
+            return (self.__stopTime - self.__startTime)
+        # => started but not stoped 
+        return (perf_counter() - self.__startTime)
+    
+    @property
+    def mesuredTime(self)->float:
+        """the total mesured time until it stated"""
+        if self.__isMesuring is False:
+            return self.__totalMesureTime
+        # => isMesuring is True
+        assert self.__currentMesureStartTime is not None
+        # add the time of the current mesure
+        return self.__totalMesureTime + (perf_counter() - self.__currentMesureStartTime)
+    
+    @property
+    def pausedTime(self)->float:
+        """the total mesured time until it stated"""
+        if (self.__isMesuring is True) or (self.started is False) or (self.stoped is True):
+            return self.__pausedTime
+        # => (isMesuring is False) and (has started) and (has not stoped)
+        assert self.__lastMesureStopTime is not None
+        # add the since the end of the last mesure
+        return self.__pausedTime + (perf_counter() - self.__lastMesureStopTime)
+    
+    
+    def start(self, *, _time:"float|None"=None)->None:
+        """start the clock (can only be called once before stoping the clock)\n
+        `_time` to force a given start time"""
+        if self.__startTime is not None:
+            # => started
+            raise RuntimeError(f"called start() but it was alredy started")
+        # => start clocking
+        self.__lastMesureStopTime = self.__stopTime = None
+        self.__isMesuring = True
+        self.__nbMesuresStarted += 1
+        t: float = (_time or perf_counter())
+        self.__currentMesureStartTime = self.__startTime = t
+        
+    def play(self, *, _time:"float|None"=None)->bool:
+        """put the clock in mesuring state (return True if it wasn't mesuring before)\n
+        `_time` to force a given play time"""
+        if (self.__isMesuring is False) and (self.__startTime is not None):
+            # => (has alredy started) and (was paused) -> start mesuring
+            assert (self.__lastMesureStopTime is not None)
+            self.__isMesuring = True
+            self.__nbMesuresStarted += 1
+            t: float = (_time or perf_counter())
+            self.__currentMesureStartTime = t
+            self.__pausedTime += (t - self.__lastMesureStopTime)
+            self.__lastMesureStopTime = None
+            return True
+        # => (__isMesuring is True) or (self.__startTime is None)
+        elif self.__isMesuring is True:
+            # => alredy mesuring
+            return False 
+        elif self.__startTime is None:
+            # => not started
+            self.start(_time=_time)
+            return True
+        else: raise RuntimeError(f"this situation is the first if")
+    
+    def pause(self, *, _time:"float|None"=None)->bool:
+        """put the clock in pause state (return True if it wasn't paused before)\n
+        `_time` to force a given pause time"""
+        t: float = (_time or perf_counter())
+        if self.__isMesuring is True:
+            # => (has alredy started) and (was mesuring) -> pause the mesure
+            assert (self.__currentMesureStartTime is not None)
+            self.__lastMesureStopTime = t
+            self.__isMesuring = False
+            self.__totalMesureTime += (t - self.__currentMesureStartTime)
+            self.__currentMesureStartTime = None
+            return True
+        # => not mesuring
+        if self.__startTime is None:
+            raise RuntimeError(f"can't pause a clock that wasn't started")
+        # => alredy paused
+        return False
+        
+    def tooglePause(self, *, _time:"float|None"=None)->bool:
+        """toogle the play/pause state (return the new isMesuring state)\n
+        `_time` to force a given play/pause time"""
+        if self.__isMesuring is True:
+            # => playing
+            self.pause(_time=(_time or perf_counter()))
+        else: # => paused
+            self.play(_time=_time)
+        return self.__isMesuring
+        
+    def stop(self, *, _time:"float|None"=None)->None:
+        """stop the clock (can only be called once after starting the clock)\n
+        `_time` to force a given stop time"""
+        t: float = (_time or perf_counter())
+        if self.started is False:
+            raise RuntimeError(f"the clock needs to be started first")
+        if self.stoped is True:
+            raise RuntimeError(f"the clock was alredy stoped")
+        # => (has started) and (not stoped)
+        if self.__isMesuring is True:
+            assert (self.__currentMesureStartTime is not None) \
+                and (self.__lastMesureStopTime is None)
+            self.__isMesuring = False
+            self.__totalMesureTime += (t - self.__currentMesureStartTime)
+            self.__currentMesureStartTime = None
+        else: # => (isMesuring is False) => (was paused)
+            assert (self.__lastMesureStopTime is not None) \
+                and (self.__currentMesureStartTime is None)
+            self.__pausedTime += (t - self.__lastMesureStopTime)
+            self.__lastMesureStopTime = None
+        # => (__lastMesureStopTime is None) and (__currentMesureStartTime is None)
+        # => (__isMesuring is False) and (__startTime is not None)
+        self.__stopTime = t
