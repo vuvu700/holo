@@ -12,7 +12,7 @@ from typing import (
     DefaultDict, Iterator, Type, Container,
     TYPE_CHECKING, AbstractSet, MutableMapping,
     Tuple, List, Dict, Set, MutableSequence,
-    OrderedDict, ClassVar, Optional,
+    OrderedDict, ClassVar, Optional, ForwardRef, 
 )
 from typing import _GenericAlias # type: ignore
 if sys.version_info < (3, 11):
@@ -105,6 +105,12 @@ def isNamedTuple(obj:object)->TypeGuard[NamedTuple]:
 
 JsonTypeAlias = Union[None, bool, int, float, str, List["JsonTypeAlias"], Dict[str, "JsonTypeAlias"]]
 
+
+def getSubclasses(t:"type[_T]")->"Generator[type[_T], None, None]":
+    """yield all the type that are subclasses of `t` (including t, yielded first)"""
+    yield t
+    for subT in type.__subclasses__(t): # doing so also handle (t is type)
+        yield from getSubclasses(subT)
 
 
 
