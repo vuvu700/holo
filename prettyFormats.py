@@ -682,4 +682,6 @@ class SingleLinePrinter():
         self.validateText(text=text)
         res = self.file.write(text)
         self.__currentLineLength += len(text)
-    
+
+def NDigitsRounding(x:float, nbDigits:int)->float:
+    return float(f"{x:.{nbDigits}g}")
