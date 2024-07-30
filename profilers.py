@@ -1,5 +1,6 @@
 from collections import deque
 from time import perf_counter
+from datetime import datetime, timedelta
 
 from holo.__typing import (
     Iterable, Callable, Any, Iterable,
@@ -497,3 +498,15 @@ class StopWatch():
         # => (__lastMesureStopTime is None) and (__currentMesureStartTime is None)
         # => (__isMesuring is False) and (__startTime is not None)
         self.__stopTime = t
+
+
+
+__referencePerfCounter: float = perf_counter()
+__referenceDatetime: datetime = datetime.now()
+
+def convert_datetime_to_perfCounter(t:datetime)->float:
+    return __referencePerfCounter + (t - __referenceDatetime).total_seconds()
+
+def convert_perfCounter_to_datetime(t:float)->datetime:
+    return __referenceDatetime + timedelta(seconds=(t - __referencePerfCounter))
+

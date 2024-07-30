@@ -648,7 +648,7 @@ class PrettyfyClass(ClassFactory):
 class SingleLinePrinter():
     __slots__ = ("__file", "__currentLineLength", )
     
-    def __init__(self, file:"TextIO")->None:
+    def __init__(self, file:"TextIO|None")->None:
         self.__file: "TextIO|None" = file
         self.__currentLineLength: int = 0
 
