@@ -5,7 +5,7 @@ from datetime import timedelta
 
 from holo.calc import divmod_rec
 from holo.__typing import (
-    Any, TextIO, NamedTuple, Callable, 
+    Any, TextIO, BinaryIO, NamedTuple, Callable, 
     Mapping, Iterable, Sequence, AbstractSet,
     TypeVar, Sized, Literal, TypeGuard, FrameType,
     Sequence, _PrettyPrintable, assertIsinstance,
@@ -643,3 +643,43 @@ class PrettyfyClass(ClassFactory):
         if (getDict is True) and hasattr(self, "__dict__"):
             attrsToValue.update(self.__dict__)
         return _ObjectRepr(className=self.__class__.__name__, args=(), kwargs=attrsToValue)
+
+
+class SingleLinePrinter():
+    __slots__ = ("__file", "__currentLineLength", )
+    
+    def __init__(self, file:"TextIO")->None:
+        self.__file: "TextIO|None" = file
+        self.__currentLineLength: int = 0
+
+    @property
+    def file(self)->"TextIO":
+        return (sys.stdout if self.__file is None else self.__file)
+    @file.setter
+    def file(self, newFile:"TextIO|None")->"None":
+        self.__file = newFile
+
+    def clearLine(self)->None:
+        self.file.write("\r")
+        self.file.write(" " * self.__currentLineLength)
+        self.file.write("\r")
+        self.__currentLineLength = 0
+    
+    def print(self, text:str)->None:
+        """clear the current line and print the new `text`, 
+        the `text` must be single lined"""
+        self.clearLine()
+        self.write(text=text)
+    
+    def validateText(self, text:str)->None:
+        for bannedChr in ("\r", "\n", "\b"):
+            pos: int = text.find(bannedChr)
+            if pos != -1:
+                raise ValueError(f"the text can't contain: {bannedChr} at index: {pos}")
+        
+    def write(self, text:str)->None:
+        """continue printing on the current line, the text must be single lined"""
+        self.validateText(text=text)
+        res = self.file.write(text)
+        self.__currentLineLength += len(text)
+    

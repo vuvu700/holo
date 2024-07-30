@@ -5,7 +5,7 @@ from types import (
     FrameType, 
 )
 from typing import (
-    Iterable, Any, Sequence, TextIO,
+    Iterable, Any, Sequence, TextIO, BinaryIO,
     Generic, TypeVar, ContextManager,
     Generator, NamedTuple, Union, overload,
     Callable, Mapping, Sized, cast, NoReturn,
