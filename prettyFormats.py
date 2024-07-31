@@ -2,6 +2,7 @@ import sys
 import traceback
 from io import StringIO, TextIOBase
 from datetime import timedelta
+import re
 
 from holo.calc import divmod_rec
 from holo.__typing import (
@@ -685,3 +686,21 @@ class SingleLinePrinter():
 
 def NDigitsRounding(x:float, nbDigits:int)->float:
     return float(f"{x:.{nbDigits}g}")
+
+expFloatPattern = re.compile(r"(?P<digit1>\d)(.(?P<subDigits>\d*))?e(?P<exp>[\-\+]\d*)")
+def NDigitsFormating(x:float, nbDigits:int)->str:
+    assert nbDigits > 0, ValueError(f"nbDigits: {nbDigits} must be > 0")
+    expFormatedFloat: str = f"{x:.{nbDigits-1}e}"
+    fullmatch: "re.Match[str]|None" = expFloatPattern.fullmatch(expFormatedFloat)
+    assert fullmatch is not None
+    groups: "dict[str, str]" = fullmatch.groupdict()
+    subDigits = ("0"*(nbDigits-1) if groups['subDigits'] is None
+                 else f"{groups['subDigits']:<0{nbDigits-1}}")
+    allDigits: str = groups['digit1'] + subDigits
+    exponent: int = int(groups["exp"]) - (nbDigits-1)
+    frontZeros: int = exponent + nbDigits
+    if frontZeros <= 0:
+        return f"0.{'0'*abs(frontZeros)}{allDigits}"
+    elif frontZeros < nbDigits:
+        return f"{allDigits[: frontZeros]}.{allDigits[frontZeros: ]}"
+    else: return str(int(allDigits)*10**exponent)
