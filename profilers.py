@@ -26,6 +26,7 @@ class Profiler(Generic[_T_Categorie]):
             multiples mesures of the same categorie are done, \
             or whether only the fist will be kept, other are ignored\n"""
         self._categories:"list[_T_Categorie]" = categories
+        assert (nbMesurements != 0), ValueError
         self.__nbMesurements:"int|None" = nbMesurements
         self._mesures:"dict[_T_Categorie, deque[float]]" = {name: deque() for name in categories}
         """mesures ordering: 0-> most recent, last-> oldest"""

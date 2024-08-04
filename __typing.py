@@ -12,10 +12,10 @@ from typing import (
     DefaultDict, Iterator, Type, Container,
     TYPE_CHECKING, AbstractSet, MutableMapping,
     Tuple, List, Dict, Set, MutableSequence,
-    OrderedDict, ClassVar, Optional, ForwardRef, 
-)
+    OrderedDict, ClassVar, Optional, ForwardRef, )
 from typing import _GenericAlias # type: ignore
-if sys.version_info < (3, 11):
+
+if sys.version_info < (3, 12):
     from typing_extensions import (
         Literal, Self, TypeVarTuple,
         Unpack, TypeGuard, LiteralString,
@@ -23,15 +23,15 @@ if sys.version_info < (3, 11):
         runtime_checkable, Concatenate,
         TypedDict, NotRequired, get_args,
         override, get_origin, Required,
-    )
+        TypeAliasType, Never, )
 else: from typing import (
         Literal, Self, TypeVarTuple,
         Unpack, TypeGuard, LiteralString,
         ParamSpec, TypeAlias, Protocol,
         runtime_checkable, Concatenate,
         TypedDict, NotRequired, get_args,
-        override, get_origin, Required
-    )
+        override, get_origin, Required,
+        TypeAliasType, Never, )
 
 
 if TYPE_CHECKING:
@@ -70,9 +70,9 @@ def assertIsinstance(type_:"type[_T]|tuple[type[_T], ...]", value:Any)->"_T":
     """assert that the type of value match the given type_\n
     also support `typing.Union`\n
     isn't suppressed with -OO"""
-    if isinstance(type_, _GenericAlias) and getattr(type_, "__origin__") is Union:
+    if get_origin(type_) is Union:
         # => type_ is an Union
-        type_ = cast("tuple[type[_T], ...]", getattr(type_, "__args__"))
+        type_ = cast("tuple[type[_T], ...]", get_args(type_))
         if None in type_:
             type_ = cast("tuple[type[_T], ...]", tuple(type(None) if t is None else t for t in type_))
     if not isinstance(value, type_):
@@ -94,6 +94,27 @@ _PrettyPrintable = Union[
     Sequence["_PrettyPrintable"], AbstractSet["_PrettyPrintable"], # Sequnce likes
     "SupportsStr", str, bytes, # others
 ]
+
+
+
+def getLiteralArgs(t)->"set": # TODO: seems it can't be typed ?!
+    """return a set containing all the literals in this type (can be recursive unions of literals)"""
+    origin = get_origin(t)
+    args = set()
+    if origin == Literal:
+        for arg in get_args(t):
+            if get_origin(arg) == None:
+                args.add(arg)
+            else: # => is a generic alias
+                args.update(getLiteralArgs(arg))
+    elif origin == Union:
+        for subT in get_args(t):
+            args.update(getLiteralArgs(subT))
+    else: raise TypeError(f"invalide origin for t: {origin}")
+    return args
+
+#_convTrainSingleMetrics = Literal["nbConvStep_train", "nbConvStep_val"]
+#res = getLiteralArgs(_convTrainSingleMetrics)
 
 
 def isNamedTuple(obj:object)->TypeGuard[NamedTuple]:

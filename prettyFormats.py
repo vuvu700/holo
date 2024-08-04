@@ -604,7 +604,11 @@ class PrettyfyClass(ClassFactory):
             raise AttributeError(f"the sub class: {subClass} must not define a __pretty__ methode, it is done by the factory")
         if _ownAttr(subClass, "__prettyAttrs__") is False:
             # => wasn't defined in the class
-            subClass.__prettyAttrs__ = "all"
+            if hasattr(subClass, "__prettyAttrs__") is False:
+                # => no bases have it defined => new -> all
+                subClass.__prettyAttrs__ = "all"
+            else: # => merge it from bases (done later)
+                subClass.__prettyAttrs__ = (list(), False)
         # => __prettyAttrs__ is the one of the class
         if subClass.__prettyAttrs__ == "all":
             subClass.__prettyAttrs__ = (list(), True)
