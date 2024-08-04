@@ -143,23 +143,25 @@ def patternValidation(string:str, pattern:str)->"tuple[bool, dict[str, int|float
             #get the data from the string
             varValue_startIndex:int = indexString
             varValue_endIndex:int = indexString
-            if varType in 'fd': # type == 'f' or type == 'd'
+            if varType in ('f', 'd'): # type == 'f' or type == 'd'
                 while (varValue_endIndex < len(string)) and (string[varValue_endIndex] in "0123456789"): # as long the number is int compatible
                     varValue_endIndex += 1
 
                 if varType == 'd': # process the value to the dict as type=int
                     dictVars[varName] = int(string[varValue_startIndex: varValue_endIndex])
 
-                else:
-                    #varType is 'f' because varType is single char and in 'df' but not equal to 'd'
-                    if (varValue_endIndex +1 < len(string)) and (string[varValue_endIndex + 1] == '.'): #test if it was interupted by a point
+                elif varType == "f":
+                    #test if it was interupted by a point
+                    if (varValue_endIndex +1 < len(string)) and (string[varValue_endIndex] == '.'): 
                         varValue_endIndex += 1
-                        if (varValue_endIndex < len(string)-1): #the point isn't the last char of the string -> continue searching
+                        # check that the point isn't the last char of the string -> continue searching
+                        if (varValue_endIndex < len(string)-1): 
                             varValue_endIndex += 1
                             while (varValue_endIndex < len(string)) and (string[varValue_endIndex] in "0123456789"): # as long the number is int compatible
                                 varValue_endIndex += 1
                     # process the value to the dict as type=float
                     dictVars[varName] = float(string[varValue_startIndex: varValue_endIndex])
+                else: raise ValueError(f"invalide type format: {repr(varType)}")
 
             elif varType == 's': # the var is a string, it's delimitation is the start of the next rule
                 if indexPattern < len(pattern):
