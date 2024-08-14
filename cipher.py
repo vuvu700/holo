@@ -19,7 +19,8 @@ def xor(message:"str|bytes", key:"str|bytes")->bytes:
     if isinstance(message, str): message = message.encode('utf-8')
     if isinstance(key, str): key = key.encode('utf-8')
     keyLength = len(key)
-    return bytes([val ^ key[index %keyLength] for index,val in enumerate(message)])
+    assert isinstance(key, bytes), TypeError
+    return bytes([val ^ key[index % keyLength] for index,val in enumerate(message)])
 
 
 

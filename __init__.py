@@ -4,7 +4,7 @@ from holo.__typing import (
     TypeVar, Any, TextIO, Literal, Iterable, NamedTuple,
     Generic, Unpack, TypeVarTuple, ContextManager, Self,
     overload, Iterator, Generator, assertIsinstance,
-)
+    Mapping, Callable, Tuple, )
 from holo.dummys import DummyContext
 from holo.prettyFormats import prettyPrint, prettyTime, _ObjectRepr, print_exception
 from holo.treeStrcutures import Node_Words, RootTreeIter, TreeIter
@@ -15,6 +15,11 @@ from holo.protocols import _T, _T2, SupportsIndex, Sized
 _Contexts = TypeVarTuple("_Contexts") # NOTE: can't be bound to contexts only:(
 _TypesTuple = TypeVarTuple("_TypesTuple")
 _Tuple = TypeVar("_Tuple", bound=tuple)
+
+_T_Key2 = TypeVar("_T_Key2")
+_T_Key = TypeVar("_T_Key")
+_T_Value2 = TypeVar("_T_Value2")
+_T_Value = TypeVar("_T_Value")
 
 
 def split_rec(string:str, listeOfSeparator:"list[str]")->"list[str]":
@@ -320,3 +325,80 @@ def getDuplicated(allItems:"Iterable[_T]")->"set[_T]":
             encountered.add(item)
         else: duplicated.add(item)
     return duplicated
+
+
+
+
+
+
+class MapDict(Iterator[Tuple[_T_Key, _T_Value]]):
+    __slots__ = ("__func", "__iterator", )
+    __func: "Callable[[Any, Any], tuple[_T_Key, _T_Value]]"
+    """(key, value) -> (newKey, newValue)"""
+    __iterator: "Iterator[tuple[Any, Any]]"
+    """iterator[(key, value)]"""
+    
+    def __new__(cls, func:"Callable[[_T_Key2, _T_Value2], tuple[_T_Key, _T_Value]]", 
+                mapping:"Mapping[_T_Key2, _T_Value2]")->Self:
+        self = object.__new__(cls) # avoid to use Generic.__new__
+        self.__func = func
+        self.__iterator = iter(mapping.items())
+        return self
+    
+    def __next__(self)->"tuple[_T_Key, _T_Value]":
+        return self.__func(*self.__iterator.__next__())
+    
+    def __iter__(self)->"Self":
+        return self
+    
+    def toDict(self)->"dict[_T_Key, _T_Value]":
+        return {newKey: newVal for (newKey, newVal) in self}
+
+
+class MapDictValues(Iterator[Tuple[_T_Key, _T_Value]]):
+    __slots__ = ("__func", "__iterator", )
+    __func: "Callable[[Any], _T_Value]"
+    """(value) -> newValue"""
+    __iterator: "Iterator[tuple[_T_Key, Any]]"
+    """iterator[(key, value)]"""
+    
+    def __new__(cls, func:"Callable[[_T_Value2], _T_Value]", 
+                mapping:"Mapping[_T_Key, _T_Value2]")->Self:
+        self = object.__new__(cls) # avoid to use Generic.__new__
+        self.__func = func
+        self.__iterator = iter(mapping.items())
+        return self
+    
+    def __next__(self)->"tuple[_T_Key, _T_Value]":
+        key, value = self.__iterator.__next__()
+        return (key, self.__func(value))
+    
+    def __iter__(self)->"Self":
+        return self
+    
+    def toDict(self)->"dict[_T_Key, _T_Value]":
+        return {newKey: newVal for (newKey, newVal) in self}
+
+class MapDictKeys(Iterator[Tuple[_T_Key, _T_Value]]):
+    __slots__ = ("__func", "__iterator", )
+    __func: "Callable[[Any], _T_Key]"
+    """(value) -> newValue"""
+    __iterator: "Iterator[tuple[Any, _T_Value]]"
+    """iterator[(key, value)]"""
+    
+    def __new__(cls, func:"Callable[[_T_Key2], _T_Key]", 
+                mapping:"Mapping[_T_Key2, _T_Value]")->Self:
+        self = object.__new__(cls) # avoid to use Generic.__new__
+        self.__func = func
+        self.__iterator = iter(mapping.items())
+        return self
+    
+    def __next__(self)->"tuple[_T_Key, _T_Value]":
+        key, value = self.__iterator.__next__()
+        return (self.__func(key), value)
+    
+    def __iter__(self)->"Self":
+        return self
+    
+    def toDict(self)->"dict[_T_Key, _T_Value]":
+        return {newKey: newVal for (newKey, newVal) in self}
