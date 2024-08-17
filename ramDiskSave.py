@@ -13,13 +13,11 @@ from holo.__typing import (
     Generic, Iterator, TypeVar, Generator,
     Self, MutableMapping, Iterable, Tuple,
     LiteralString, Literal, overload, TypeAlias,
-    TYPE_CHECKING, Dict, cast,
-)
+    TYPE_CHECKING, Dict, cast, Union, )
 from holo.protocols import (
     SupportsFileWrite, SupportsFileRead, 
     SupportsPickleRead,
-    SupportsReduce, _KT, _T, 
-)
+    SupportsReduce, _KT, _T, )
 
 from holo.files import get_unique_name
 from holo import print_exception
@@ -35,7 +33,7 @@ if TYPE_CHECKING:
 ### types definitions
 
 _T_Savable = TypeVar("_T_Savable", 
-    bound="SupportsReduce|numpy.ndarray|pandas.DataFrame")
+    bound=Union[SupportsReduce, numpy.ndarray, pandas.DataFrame])
 
 
 class _Unsetted():
@@ -84,6 +82,11 @@ ex: when given {str:lib1, int:lib2}, \
 """
 
 _CompressionTuple = Tuple[_CompressionLib, int]
+
+compressionLevelsRange: "dict[_CompressionLib, tuple[int, int]]" = {
+    "lz4": (1, 16), "blosc:lz4": (1, 16), "lzma": (1, 18), 
+    "bz2": (1, 9), "bzip2": (1, 9), "lzo": (1, 9), 
+    "blosc": (1, 9), "zlib": (1, 9)}
 
 _CustomCompression:TypeAlias = "dict[_SaveLibExt|tuple[_SaveLib, type], _CompressionTuple]"
 
