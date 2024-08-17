@@ -387,6 +387,106 @@ class DCycle(Generic[_T]):
         return f"{self.__class__.__name__}([{', '.join(map(repr, iter(self)))}])"
 
 
+
+
+class NoHistoryError(Exception):
+    """no history is available"""
+
+class _HistoryNode(NodeAuto[_T]):
+    __NB_NODES_CREATED: int = 0
+    __slots__ = ("ID", )
+    next: "_HistoryNode|None"
+    prev: "_HistoryNode|None"
+    
+    def __init__(self, value:"_T", next:"_HistoryNode|None"=None,
+                 prev:"_HistoryNode|None"=None) -> None:
+        super().__init__(value, next, prev)
+        self.ID = _HistoryNode.__NB_NODES_CREATED
+        _HistoryNode.__NB_NODES_CREATED += 1
+    
+class History(Generic[_T]):
+    __slots__ = ("__values", "__NULL_HIST", )
+    
+    def __init__(self, valuesType:"type[_T]|None"=None) -> None:
+        """create an empty history (`valuesType` isn't used, on here for type annotation)"""
+        self.__NULL_HIST: "_HistoryNode[_T]" = _HistoryNode(...)
+        self.__values: "_HistoryNode[_T]" = self.__NULL_HIST
+        """all the values, prev/current elements are the values to revert to, 
+        next values are the ones to redo\ncurrent Node is the last value """
+    
+    def getEmptyHistID(self)->int:
+        return self.__NULL_HIST.ID
+    
+    def getCurrentNodeID(self)->int:
+        """return the ID of the currently targted node"""
+        return self.__values.ID
+    
+    def addCheckpoint(self, value:"_T")->None:
+        """add the given config to the history"""
+        if self.__values is self.__NULL_HIST:
+            # => no current actions
+            prev = self.__NULL_HIST
+        else: # => drop the redo action
+            self.__values.next = None 
+            # add the action in front of the old action
+            prev = self.__values
+        self.__values = _HistoryNode(value, prev=prev)
+        
+    def undoOne(self)->"_T":
+        """return the value undone, 
+        raise a NoHistoryError if there is no history available"""
+        if self.__values is self.__NULL_HIST:
+            raise NoHistoryError("there is no history to revert")
+        # => revert
+        value: "_T" = self.__values.value
+        assert self.__values.prev is not None
+        self.__values = self.__values.prev
+        return value
+        
+    def redoOne(self)->"_T":
+        """retunr the redone value, 
+        raise a NoHistoryError if there is no history available"""
+        if self.__values.next is None:
+            raise NoHistoryError("there is no history to redo")
+        # => redo
+        value: "_T" = self.__values.next.value
+        self.__values = self.__values.next
+        return value
+
+    def clearHistory(self)->None:
+        self.__init__()
+
+    def __get_allToRedo(self)->"list[_T]":
+        values: "list[_T]" = []
+        hist = self.__values.next
+        while hist is not None:
+            values.append(hist.value)
+            hist = hist.next
+        values.reverse()
+        return values
+
+    def __get_allToRevert(self)->"list[_T]":
+        if self.__values is None:
+            return []
+        actions: "list[_T]" = []
+        hist = self.__values
+        while hist is not self.__NULL_HIST:
+            assert hist is not None
+            actions.append(hist.value)
+            hist = hist.prev
+        return actions
+
+    def __pretty__(self, *_, **__)->"_ObjectRepr":
+        return _ObjectRepr(self.__class__.__name__, 
+            args=("timeline: |done after <- done before|", ),
+            kwargs={"toRedo": self.__get_allToRedo(), 
+                    "toRevert": self.__get_allToRevert()})
+
+
+
+
+
+
 class SMALLEST(): 
     def __lt__(self, __other:object)->bool: return True
     def __le__(self, __other:object)->bool: return True
@@ -497,8 +597,10 @@ class Node_SkipList(Generic[_T, _T_key]):
     @classmethod
     def createHEAD(cls)->"Self":
         """create a HEAD and a TAIL connected together"""
-        head: "Self" = cls(NotImplemented, key=SMALLEST(), height=0)
-        tail: "Self" = cls(NotImplemented, key=BIGGEST(), height=0)
+        head: "Self" = cls(NotImplemented, height=0,
+                           key=SMALLEST()) # type: ignore
+        tail: "Self" = cls(NotImplemented, height=0,
+                           key=BIGGEST()) # type: ignore
         head.nexts.append(tail)
         tail.prevs.append(head)
         return head

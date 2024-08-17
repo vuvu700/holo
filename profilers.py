@@ -243,11 +243,11 @@ class Profiler(Generic[_T_Categorie]):
     def isCategorie(self, categorie:str)->"TypeGuard[_T_Categorie]":
         return categorie in self._mesures.keys()
 
-class SimpleProfiler(ContextManager):
+class SimpleProfiler(ContextManager, Generic[_T_Categorie]):
     """a simple profiler that hold a single mesure"""
 
     def __init__(self, name:"_T_Categorie|None"=None, setMesureFunc:"Callable[[_T_Categorie, float], Any]|None"=None)->None:
-        self.name:"_T_Categorie|None" = name
+        self.name: "_T_Categorie|None" = name
         self.__setMesureFunc:"Callable[[_T_Categorie, float], Any]|None" = setMesureFunc
         self.startTime:"float|None" = None
         self.StopTime:"float|None" = None
