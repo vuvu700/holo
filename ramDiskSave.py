@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 ### types definitions
 
 _T_Savable = TypeVar("_T_Savable", 
-    bound=Union[SupportsReduce, numpy.ndarray, pandas.DataFrame])
+    bound=Union[SupportsReduce, "numpy.ndarray", "pandas.DataFrame"])
 
 
 class _Unsetted():
