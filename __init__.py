@@ -355,6 +355,21 @@ class MapDict(Iterator[Tuple[_T_Key, _T_Value]]):
         return {newKey: newVal for (newKey, newVal) in self}
 
 
+class MapDict2(Generic[_T_Key, _T_Key2, _T_Value, _T_Value2]):
+    __slots__ = ("__func", )
+    __func: "Callable[[_T_Key, _T_Value], tuple[_T_Key2, _T_Value2]]"
+    """(key, value) -> (newKey, newValue)"""
+    
+    def __new__(cls, func:"Callable[[_T_Key, _T_Value], tuple[_T_Key2, _T_Value2]]")->Self:
+        self = object.__new__(cls) # avoid to use Generic.__new__
+        self.__func = func
+        return self
+    
+    def __call__(self, mapping:"Mapping[_T_Key, _T_Value]")->"dict[_T_Key2, _T_Value2]":
+        return dict(*(self.__func(*keyVal) for keyVal in mapping.items()))
+
+
+
 class MapDictValues(Iterator[Tuple[_T_Key, _T_Value]]):
     __slots__ = ("__func", "__iterator", )
     __func: "Callable[[Any], _T_Value]"
@@ -379,6 +394,21 @@ class MapDictValues(Iterator[Tuple[_T_Key, _T_Value]]):
     def toDict(self)->"dict[_T_Key, _T_Value]":
         return {newKey: newVal for (newKey, newVal) in self}
 
+
+class MapDictValues2(Generic[_T_Value, _T_Value2]):
+    __slots__ = ("__func", )
+    __func: "Callable[[_T_Value], _T_Value2]"
+    """(value) -> newValue"""
+    
+    def __new__(cls, func:"Callable[[_T_Value], _T_Value2]")->Self:
+        self = object.__new__(cls) # avoid to use Generic.__new__
+        self.__func = func
+        return self
+    
+    def __call__(self, mapping:"Mapping[_T_Key, _T_Value]")->"dict[_T_Key, _T_Value2]":
+        return {key: self.__func(val) for (key, val) in mapping.items()}
+
+
 class MapDictKeys(Iterator[Tuple[_T_Key, _T_Value]]):
     __slots__ = ("__func", "__iterator", )
     __func: "Callable[[Any], _T_Key]"
@@ -402,3 +432,18 @@ class MapDictKeys(Iterator[Tuple[_T_Key, _T_Value]]):
     
     def toDict(self)->"dict[_T_Key, _T_Value]":
         return {newKey: newVal for (newKey, newVal) in self}
+
+
+class MapDictKeys2(Generic[_T_Key, _T_Key2]):
+    __slots__ = ("__func", )
+    __func: "Callable[[_T_Key], _T_Key2]"
+    """(value) -> newValue"""
+    
+    def __new__(cls, func:"Callable[[_T_Key], _T_Key2]")->Self:
+        self = object.__new__(cls) # avoid to use Generic.__new__
+        self.__func = func
+        return self
+    
+    def __call__(self, mapping:"Mapping[_T_Key, _T_Value]")->"dict[_T_Key2, _T_Value]":
+        return {self.__func(key): val for (key, val) in mapping.items()}
+
