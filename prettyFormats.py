@@ -595,7 +595,7 @@ class PrettyfyClass(ClassFactory):
     __prettyAttrs__: "ClassVar[list[str]|Literal['all']|tuple[list[str], bool]]"
     __slots__ = ()
     
-    def __init_subclass__(cls:"type[ClassFactory]", **kwargs)->None:
+    def __init_subclass__(cls:"type[PrettyfyClass]", **kwargs)->None:
         ClassFactory._ClassFactory__registerFactoryUser(cls, **kwargs)
     
     @staticmethod

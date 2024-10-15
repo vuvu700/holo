@@ -6,7 +6,7 @@ from holo.__typing import (
     Protocol, TypeVar, Any, TypeAlias, Union, runtime_checkable,
     Mapping, Sequence, NamedTuple, TYPE_CHECKING, overload, Self,
     _PrettyPrintable, TracebackType, Callable, Concatenate, ParamSpec,
-    LiteralString, Literal, ClassVar, ClassFactory,
+    LiteralString, Literal, ClassVar, ClassFactory, _T_LiteralString, 
 )
 
 if TYPE_CHECKING:
@@ -24,7 +24,6 @@ _T = TypeVar("_T")
 _T2 = TypeVar("_T2"); _T3 = TypeVar("_T3"); _T3 = TypeVar("_T3")
 _T_co = TypeVar("_T_co", covariant=True)
 _T_contra = TypeVar("_T_contra", contravariant=True)
-_StrLiteral = TypeVar("_StrLiteral", bound=LiteralString)
 
 _P = ParamSpec("_P")
 

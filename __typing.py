@@ -40,6 +40,13 @@ if TYPE_CHECKING:
     from holo.protocols import SupportsPretty, SupportsStr, ClassFactoryProtocol, _T
     from holo.prettyFormats import _ObjectRepr
 
+
+_T_ClassFactory = TypeVar("_T_ClassFactory", bound="type[ClassFactory]")
+
+_T_LiteralString = TypeVar("_T_LiteralString", bound=LiteralString)
+def get_args_LiteralString(t:"type[_T_LiteralString]")->"tuple[_T_LiteralString, ...]":
+    return get_args(t)
+
 # TODO
 '''
 def typeCheck(type_:"type[_T]|tuple[type[_T], ...]", value:Any)->"TypeGuard[_T]":
@@ -198,13 +205,14 @@ class ClassFactory():
         return cast("type[ClassFactoryProtocol]", subClass) # => the sub class is a valide factory
 
     @staticmethod
-    def _ClassFactory__registerFactoryUser(subClass:"type[ClassFactory]", **kwargs):
+    def _ClassFactory__registerFactoryUser(subClass:"_T_ClassFactory", **kwargs)->"_T_ClassFactory":
         """register a sub class and call the factories on it"""
         for base in subClass.__bases__:
             factorys = ClassFactory.__registered_subclasses.get(base, None)
             if factorys is not None:
                 ClassFactory.__registered_subclasses[subClass].update(factorys)
         ClassFactory._ClassFactory__callFactories(subClass, **kwargs)
+        return subClass
 
     @staticmethod
     def _ClassFactory__callFactories(subClass:"type[ClassFactory]", **kwargs)->None:
@@ -217,7 +225,7 @@ class FinalClass(ClassFactory):
     """make all attr of the sub classes final"""
     __slots__ = ()
     
-    def __init_subclass__(cls:"type[ClassFactory]", **kwargs)->None:
+    def __init_subclass__(cls:"type[FinalClass]", **kwargs)->None:
         ClassFactory._ClassFactory__registerFactoryUser(cls, **kwargs)
     
     @staticmethod
@@ -242,7 +250,7 @@ class PartialyFinalClass(ClassFactory):
     __slots__ = ()
     __finals__: "ClassVar[set[str]]"
     
-    def __init_subclass__(cls:"type[ClassFactory]", **kwargs)->None:
+    def __init_subclass__(cls:"type[PartialyFinalClass]", **kwargs)->None:
         ClassFactory._ClassFactory__registerFactoryUser(cls, **kwargs)
     
     @staticmethod
@@ -296,7 +304,7 @@ class FreezableClass(ClassFactory):
     __slots__ = ("__frozen", )
     __initialFreez: "ClassVar[bool|None]"
     
-    def __init_subclass__(cls:"type[ClassFactory]", **kwargs)->None:
+    def __init_subclass__(cls:"type[FreezableClass]", **kwargs)->None:
         ClassFactory._ClassFactory__registerFactoryUser(cls, **kwargs)
     
     @staticmethod
