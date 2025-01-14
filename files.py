@@ -377,6 +377,9 @@ class BlocksReader(Generic[_T_co_Sized]):
             content = self.file.read(self.blocksSize)
             
 
+def countLines_singleFile(path:Path)->int:
+    with open(path, mode="r", errors="ignore") as file:
+        return file.read().count("\n")
 
 def countLines_files(files:"Iterable[Path|os.DirEntry[str]]")->"dict[str, int]":
     """count the number of newlines in each files"""
@@ -388,8 +391,7 @@ def countLines_files(files:"Iterable[Path|os.DirEntry[str]]")->"dict[str, int]":
         elif isinstance(fileInfo, os.DirEntry):
             path = Path(fileInfo.path)
         else: raise TypeError(f"unsupported fileInfo type: {type(fileInfo)}")
-        with open(path, mode="r", errors="ignore") as file:
-            datas[path.as_posix()] = file.read().count("\n")
+        datas[path.as_posix()] = countLines_singleFile(path)
     return datas
 
 def countLines_directory(
