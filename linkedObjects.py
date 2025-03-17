@@ -924,7 +924,7 @@ class SkipList(Generic[_T, _T_key], Sequence):
     
     def fetchNode(self, key:"_T_key")->"Node_SkipList[_T, _T_key]":
         """get the last node with the same key, raise a KeyError if the key don't exist"""
-        return self.__getRemoveNodeFirst(key, removeNode=False) 
+        return self.__getRemoveNodeLast(key, removeNode=False) 
     def fetch(self, key:"_T_key")->"_T":
         """get the last element with the same key, raise a KeyError if the key don't exist"""
         return self.getNode(key).element
