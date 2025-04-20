@@ -89,6 +89,23 @@ class Manager():
         """return when all tasks are finished"""
         self._tasksList.join()
 
+    def runBatchWithReturn(self, tasks:"SupportsIterableSized[TaskWithReturn[_T]]")->list[_T]:
+        """execute the `tasks` with the manager (blocking)\n
+        return a list of results as [tasks[0] -> res[0], ..., tasks[n] -> res[n]]"""
+        # create pointers to grab each results
+        resultPointers:"list[Pointer[_T]]" = []
+        # start working
+        self.unPause()
+        for task in tasks:
+            resPtr: "Pointer[_T]" = Pointer()
+            resultPointers.append(resPtr)
+            (func, funcArgs, funcKwargs) = task._toTuple()
+            self.addWork(taskResultGraber, func, resPtr, *funcArgs, **funcKwargs)
+        # wait until all tasks are done
+        self.join()
+        # assemble the results and return
+        return [ptr.value for ptr in resultPointers]
+
 
 #def taskResultGraber(func:"Callable[_P, _T|Any]", resPtr:"Pointer[_T|Any]", *funcArgs:_P.args, **funcKwargs:_P.kwargs)->None:
 def taskResultGraber(func:"Callable[_P, _T]", resPtr:"Pointer[_T]", *funcArgs:_P.args, **funcKwargs:_P.kwargs)->None:
