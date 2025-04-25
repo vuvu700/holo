@@ -41,7 +41,13 @@ def split_rec(string:str, listeOfSeparator:"list[str]")->"list[str]":
     return res
 
 
-
+def separate(elements:"Iterable[tuple[_T, _T2]]")->"tuple[list[_T], list[_T2]]":
+    first: "list[_T]" = []
+    second: "list[_T2]" = []
+    for a, b in elements:
+        first.append(a)
+        second.append(b)
+    return (first, second)
 
 
 def count(iterable:Iterable, doReturnListe:bool=False)->"dict[Any, int] | list[tuple[int, Any]]":

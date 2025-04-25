@@ -89,7 +89,7 @@ class Manager():
         """return when all tasks are finished"""
         self._tasksList.join()
 
-    def runBatchWithReturn(self, tasks:"SupportsIterableSized[TaskWithReturn[_T]]")->list[_T]:
+    def runBatchWithReturn(self, tasks:"SupportsIterableSized[TaskWithReturn[_T]]")->"list[_T]":
         """execute the `tasks` with the manager (blocking)\n
         return a list of results as [tasks[0] -> res[0], ..., tasks[n] -> res[n]]"""
         # create pointers to grab each results
