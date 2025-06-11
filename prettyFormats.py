@@ -585,13 +585,15 @@ class PrettyfyClass(ClassFactory):
     - not defined -> use 'all'
     - 'all' -> get all from __dict__ (if it has one) and __slots__ (if it has one) 
         * only add the attrs from __slots__ if it was defined in the class, not from a super class
-        * 'all' will be changed to tuple[set[str], 'all'] in order to simplify the process
-    - set[str] -> add the attrs from the set (can be __slots__/__dict__ class)
+        * 'all' will be changed to tuple[list[str], True] in order to simplify the process
+    - list[str] -> add the attrs from the list (can be __slots__/__dict__ class)
         * private attrs must be the ones from the class where __prettyAttrs__ is setted
-        * set[str] will be changed to tuple[set[str], None] in order to simplify the process
+        * list[str] will be changed to tuple[list[str], None] in order to simplify the process
     - tuple[(1), (2)] -> (this is what the class will have after the __init_subclass__)
-        * (1) set[str] -> (like - 'set[str]'),
-        * (2) bool: True -> get all from the self.__dict__ | False -> do nothing"""
+        * (1) list[str] -> (like - 'list[str]'),
+        * (2) bool: True -> get all from the self.__dict__ | False -> do nothing
+    when dealing with attrs, use `withAttrs`=True kwarg in the init, NOTE: the other kwargs will be disabled,
+        re-use `withAttrs` each time you use attrs"""
     __prettyAttrs__: "ClassVar[list[str]|Literal['all']|tuple[list[str], bool]]"
     __slots__ = ()
     
@@ -599,46 +601,81 @@ class PrettyfyClass(ClassFactory):
         ClassFactory._ClassFactory__registerFactoryUser(cls, **kwargs)
     
     @staticmethod
-    def _ClassFactory__initSubclass(subClass:"type[PrettyfyClass]", addPrettyAttrs_fromBases:"bool|None"=True, **kwargs) -> None:
+    def _ClassFactory__initSubclass(
+            subClass:"type[PrettyfyClass]", withAttrs:bool=False, 
+            addPrettyAttrs_fromBases:"bool|None"=True, **kwargs) -> None:
+        #print(f"\n* start * {getattr(subClass, '__prettyAttrs__', None)} *")
+        if withAttrs is True:
+            assert _ownAttr(subClass, "__attrs_attrs__") is False, \
+                RuntimeError(f"attrs has alredy been applyed to this class")
+            #print("* 0.1")
+            if (_ownAttr(subClass, "__prettyAttrs__") is False):
+                subClass.__prettyAttrs__ = "all"
+            return # => wait until attrs is applied
+        
+        ## start of the normal process
         if _ownAttr(subClass, "__pretty__"):
             raise AttributeError(f"the sub class: {subClass} must not define a __pretty__ methode, it is done by the factory")
-        if _ownAttr(subClass, "__prettyAttrs__") is False:
-            # => wasn't defined in the class
+        if (_ownAttr(subClass, "__prettyAttrs__") is False):
+            # => wasn't defined in the class (or constructed with attrs)
             if hasattr(subClass, "__prettyAttrs__") is False:
                 # => no bases have it defined => new -> all
                 subClass.__prettyAttrs__ = "all"
+                #print("* 1.1")
             else: # => merge it from bases (done later)
                 subClass.__prettyAttrs__ = (list(), False)
+                #print("* 1.2")
+        #else: print("* 1.3")
         # => __prettyAttrs__ is the one of the class
         if subClass.__prettyAttrs__ == "all":
             subClass.__prettyAttrs__ = (list(), True)
             if _ownAttr(subClass, "__slots__"): # => __slots__ class
                 subClass.__prettyAttrs__[0].extend(
-                    (getAttrName(subClass, name) for name in getattr(subClass, "__slots__")))
+                    (getAttrName(subClass, name) for name in getattr(subClass, "__slots__")
+                     if name != "__weakref__"))
+                #print("* 2.1.1")
+            #else: print("* 2.1.2")
             # else => __dict__ class => 'all' is sufficient, nothing more to add
-        else: # => set[str] | tuple[set[str], 'all']
+        else: # => list[str] | tuple[list[str], True]
             # transform the names to attrNames
             if isinstance(subClass.__prettyAttrs__, tuple):
                 subClass.__prettyAttrs__ = (
                     [getAttrName(subClass, name) for name in subClass.__prettyAttrs__[0]], 
                     subClass.__prettyAttrs__[1])
-            else: # => set[str]
+                #print("* 2.2.1")
+            else: # => list[str]
                 subClass.__prettyAttrs__ = ([getAttrName(subClass, name) for name in subClass.__prettyAttrs__], False)
+                #print("* 2.2.2")
+        #print(f"* 3 -> {subClass.__prettyAttrs__}")
         # => the transformation of __prettyAttrs__ is done
         
         if addPrettyAttrs_fromBases is False:
+            #print("* 4.1\n")
             return None # => finished here
         # add the __prettyAttrs__ from the bases
         set_getDict: bool = subClass.__prettyAttrs__[1]
+        from_bases: list[str] = []
         for baseClasse in subClass.__bases__:
             if (baseClasse is PrettyfyClass) or (): continue
             if not issubclass(baseClasse, PrettyfyClass):
                 continue
             attrs, getDict = cast("tuple[list[str], bool]", baseClasse.__prettyAttrs__)
-            subClass.__prettyAttrs__[0].extend(attrs)
+            from_bases.extend(attrs)
             if getDict == True: set_getDict = True
             # else: => keep it
-        subClass.__prettyAttrs__ = (subClass.__prettyAttrs__[0], set_getDict)
+        from_bases.extend(subClass.__prettyAttrs__[0])
+        subClass.__prettyAttrs__ = (from_bases, set_getDict)
+        #print(f"* 4.2 -> {subClass.__prettyAttrs__}\n")
+
+    @staticmethod
+    def wrapClass(target:"_T_Type")->"_T_Type":
+        """small workaround for decorated class that whould have a multiple init_subclass\n
+        place it before the @decorator that edit the class\n
+        when using the wrapper, dont use heritage"""
+        PrettyfyClass._ClassFactory__initSubclass(target)
+        target.__pretty__ = PrettyfyClass.__pretty__
+        return target
+
     
     def __pretty__(self, *_, **__) -> _ObjectRepr:
         attrsToValue: "dict[str, Any]" = {}
