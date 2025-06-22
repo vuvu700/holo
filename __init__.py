@@ -332,7 +332,19 @@ def getDuplicated(allItems:"Iterable[_T]")->"set[_T]":
         else: duplicated.add(item)
     return duplicated
 
-
+def batched(elements:"list[_T]", batchSize:int)->"list[list[_T]]":
+    all_batch: "list[list[_T]]" = []
+    batch: "list[_T]" = []
+    for elt in elements:
+        if len(batch) == batchSize:
+            # => batch is full, start a new batch
+            all_batch.append(batch)
+            batch = []
+        batch.append(elt)
+    if len(batch) != 0:
+        all_batch.append(batch)
+    del batch # either empty or alredy added
+    return all_batch
 
 
 

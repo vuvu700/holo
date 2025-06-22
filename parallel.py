@@ -165,7 +165,7 @@ class MP_Exception():
 
 class ProcessWorker(_MP_Process, Generic[_T]):
     def __init__(self, manager:"ProcessManager[_T]")->None:
-        super().__init__()
+        super().__init__(daemon=True)
         self.manager = manager
         
     def run(self)->None:
@@ -174,7 +174,6 @@ class ProcessWorker(_MP_Process, Generic[_T]):
             self.manager.waitUntilRunning()
             # try to get some work
             task: "TaskWithReturn_MP[_T]" = self.manager._tasksQueue.get()
-            print(f"-> running {task.taskID}")
             #=> got some work => do it
             try: 
                 result = task.func(*task.funcArgs, **task.funcKwargs)
