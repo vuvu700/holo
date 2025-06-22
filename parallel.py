@@ -1,10 +1,11 @@
 from collections.abc import Callable, Iterable
 from queue import Queue, Empty as EmptyError
 import threading
-import time
+import traceback
 
 from holo.__typing import (
-    Callable, Any, Iterable, Generic, Sequence,
+    Callable, Any, Iterable, Generic, 
+    overload, Literal,
 )
 from holo.prettyFormats import basic__strRepr__, print_exception
 from holo.protocols import _T, _P, SupportsIterableSized
@@ -157,9 +158,13 @@ import multiprocess
 _MP_Process: "type[multiprocess.process.BaseProcess]" = \
     assertIsinstance(type, multiprocess.Process) # type: ignore
 
+class MP_Exception():
+    __slots__ = ("err", )
+    def __init__(self, err: Exception) -> None:
+        self.err = err
 
 class ProcessWorker(_MP_Process, Generic[_T]):
-    def __init__(self, manager:"ProcessManager")->None:
+    def __init__(self, manager:"ProcessManager[_T]")->None:
         super().__init__()
         self.manager = manager
         
@@ -173,9 +178,9 @@ class ProcessWorker(_MP_Process, Generic[_T]):
             #=> got some work => do it
             try: 
                 result = task.func(*task.funcArgs, **task.funcKwargs)
-                self.manager._resultsQueue.put(result)
+                self.manager._results[task.taskID] = result
             except Exception as err:
-                self.manager._resultsQueue.put(err)
+                self.manager._results[task.taskID] = MP_Exception(err)
             finally: self.manager._tasksQueue.task_done()
 
 
@@ -190,7 +195,7 @@ class ProcessManager(Generic[_T]):
         # type hint (they are large so regrouped here)
         self._ctx: "multiprocess.context.SpawnContext"
         self._tasksQueue: "multiprocess.queues.JoinableQueue"
-        self._resultsQueue: "multiprocess.queues.Queue"
+        self._results: "dict[int, _T|MP_Exception]"
         self.__runningEvent: "multiprocess.synchronize.Event"
         self.__workers: "list[ProcessWorker[_T]]"
         self.__next_taskID: int = 0
@@ -203,16 +208,17 @@ class ProcessManager(Generic[_T]):
         else: self._ctx = ProcessManager.__Common_Ctx
         # initialize manager
         self._tasksQueue = self._ctx.JoinableQueue()
-        self._resultsQueue = self._ctx.Queue()
         self.__runningEvent = self._ctx.Event()
         self.setPaused(startPaused)
+        # setup the sync manager for the results
+        self.__syncManager = multiprocess.managers.SyncManager(ctx=self._ctx)
+        self.__syncManager.start()
+        self._results = self.__syncManager.dict() # type: ignore
         # initialize workers
         self.__workers = [ProcessWorker(self) for _ in range(nbWorkers)]
         # start the workers
         for worker in self.__workers:
             worker.start()
-            #import time
-            #time.sleep(0.5)
     
     def __giveTaskID(self)->int:
         taskID = self.__next_taskID
@@ -258,8 +264,33 @@ class ProcessManager(Generic[_T]):
             taskID, task.func, *task.funcArgs, **task.funcKwargs))
         return taskID
     
-    def getResult(self, taskID:int, popIt:bool=True)->"_T|Exception":
-        raise NotImplementedError
-    def popResult(self)->"_T|Exception":
-        return self._resultsQueue.get(block=False)
+    def getResult(self, taskID:int, popIt:bool=True)->"_T|MP_Exception":
+        if popIt is True:
+            return self._results.pop(taskID)
+        else: return self._results[taskID]
     
+    def runBatch(self, tasks:"SupportsIterableSized[TaskWithReturn[_T]]")->"list[_T]":
+        """execute the `tasks` with the manager (blocking)\n
+        return a list of results as [tasks[0] -> res[0], ..., tasks[n] -> res[n]]\n
+        if some exceptions happends, will print thelm all then raise a RuntimeError"""
+        # create pointers to grab each results
+        taskIDs:"list[int]" = []
+        # start working
+        self.unPause()
+        for task in tasks:
+            (func, funcArgs, funcKwargs) = task._toTuple()
+            taskIDs.append(self.addWork(func, *funcArgs, **funcKwargs))
+        # wait until all tasks are done
+        self.join()
+        # assemble the results and return
+        results = [self.getResult(taskID, popIt=True) for taskID in taskIDs]
+        filteredResults: list[_T] = []
+        hasExceptions: bool = False
+        for res in results:
+            if isinstance(res, MP_Exception):
+                hasExceptions = True
+                print_exception(res.err)
+            else: filteredResults.append(res)
+        if hasExceptions is True:
+            raise RuntimeError("some tasks failed, tracebacks are alredy printed")
+        return filteredResults
