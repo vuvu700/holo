@@ -1,7 +1,0 @@
-numpy
-numba
-matplotlib
-typing_extensions
-requests
-mypy
-multiprocess 
