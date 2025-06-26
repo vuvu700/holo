@@ -9,18 +9,18 @@ import pickle
 
 
 
-from holo.__typing import (
+from .__typing import (
     Generic, Iterator, TypeVar, Generator,
     Self, MutableMapping, Iterable, Tuple,
     LiteralString, Literal, overload, TypeAlias,
     TYPE_CHECKING, Dict, cast, Union, )
-from holo.protocols import (
+from .protocols import (
     SupportsFileWrite, SupportsFileRead, 
     SupportsPickleRead,
     SupportsReduce, _KT, _T, )
 
-from holo.files import get_unique_name
-from holo import print_exception
+from .files import get_unique_name
+from . import print_exception
 
 if TYPE_CHECKING:
     # => heavy imports, they will be done justInTime
@@ -935,8 +935,8 @@ def benchMethode(
         print("imports done")
     del t0, t1
     
-    from holo.profilers import Profiler
-    from holo.prettyFormats import prettyPrint, prettyTime, prettyDataSizeOctes
+    from .profilers import Profiler
+    from .prettyFormats import prettyPrint, prettyTime, prettyDataSizeOctes
     import random
     
     def prettyProfTimes(prof:Profiler)->None:

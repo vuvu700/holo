@@ -1,5 +1,5 @@
-from holo.__typing import Iterable, Generic, overload, Literal
-from holo.protocols import (
+from .__typing import Iterable, Generic, overload, Literal
+from .protocols import (
     SupportsMathAdd, SupportsMathMul, SupportsMathRing, 
     _T_MathAdd, _T_MathMul, _T_MathRing, _StrLiteral,
 )

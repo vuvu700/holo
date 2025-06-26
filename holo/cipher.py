@@ -1,4 +1,4 @@
-from holo.__typing import Iterable
+from .__typing import Iterable
 
 def rot(msg:str, n:int=13, alphabet:"str|None"=None)->str:
     if alphabet is None:

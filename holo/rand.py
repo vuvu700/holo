@@ -1,10 +1,10 @@
 import random
 
 
-from holo.__typing import (
+from .__typing import (
     Iterable, Callable,
 )
-from holo.protocols import _T, SupportsLenAndGetItem
+from .protocols import _T, SupportsLenAndGetItem
 
 
 
@@ -114,8 +114,8 @@ def playlistShuffle(elements:"SupportsLenAndGetItem[_T]", ratioReplayLater:float
 
 
 def benchShuffle(size:int)->None:
-    from holo.prettyFormats import prettyPrint, prettyTime
-    from holo.profilers import Profiler
+    from .prettyFormats import prettyPrint, prettyTime
+    from .profilers import Profiler
     
     playlist = list(range(size))
     prof = Profiler(["random", "playlist-lowSafe", "playlist-highSafe", "gaussian-lowRand", "gaussian-veryLowRand", "gaussian-highRand"])

@@ -1,7 +1,7 @@
 from io import DEFAULT_BUFFER_SIZE
 
-from holo.__typing import TypeVar, Generic, Literal
-from holo.protocols import SupportsRead, SupportsWrite
+from .__typing import TypeVar, Generic, Literal
+from .protocols import SupportsRead, SupportsWrite
 
 
 try: from pyx_reader import ReaderFast
@@ -259,8 +259,8 @@ def bench(filesBatch:"list[str]", readSize:"int|None"=None,
           pattern:"str|bytes|None"=None, encoding:"str|None"=None,
           doTextMode:bool=True)->None:
     import os
-    from holo.profilers import Profiler
-    from holo.prettyFormats import prettyDataSizeOctes
+    from .profilers import Profiler
+    from .prettyFormats import prettyDataSizeOctes
     
     prof = Profiler(["Reader [text]", "Reader [bytes]",
                      "ReaderFast (bench) [bytes]", "ReaderFast (class) [bytes]",
@@ -326,8 +326,8 @@ def bench(filesBatch:"list[str]", readSize:"int|None"=None,
 def benchRawRead(filesBatch:"list[str]", readSize:"int|None"=None,
                  encoding:"str|None"=None, doTextMode:bool=True)->None:
     import os
-    from holo.profilers import Profiler
-    from holo.prettyFormats import prettyDataSizeOctes
+    from .profilers import Profiler
+    from .prettyFormats import prettyDataSizeOctes
     
     prof = Profiler(["raw read [text]", "raw read [bytes]"])
     
@@ -354,7 +354,7 @@ def benchRawRead(filesBatch:"list[str]", readSize:"int|None"=None,
 def benchMulti(readSizes:"list[int|None]", patterns:"list[str|bytes]",
                filesBatch:"list[str]", encoding:"str|None"=None, 
                doTextMode:bool=True)->None:
-    from holo.prettyFormats import prettyDataSizeOctes
+    from .prettyFormats import prettyDataSizeOctes
     
     for readSize in readSizes:
         print(f"#### readSize={None if readSize is None else prettyDataSizeOctes(readSize)}")

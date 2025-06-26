@@ -13,8 +13,8 @@ from pyx_datatypes cimport (
 
 from io import DEFAULT_BUFFER_SIZE
 
-from holo.protocols import SupportsRead
-from holo import Pointer
+from .protocols import SupportsRead
+from . import Pointer
 
 cdef struct Reader2:
     PyObject *file # SupportsRead[bytes]

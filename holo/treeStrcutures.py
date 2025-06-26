@@ -1,8 +1,8 @@
-from holo.__typing import (
+from .__typing import (
     Any, Sequence, Iterator, Iterable,
     Generic, Generator, Callable, overload, cast,
 )
-from holo.protocols import _T, _T2
+from .protocols import _T, _T2
 from functools import reduce
 
 

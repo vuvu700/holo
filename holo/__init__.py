@@ -1,15 +1,15 @@
 __author__ = "Andrieu Ludovic"
 
-from holo.__typing import (
+from .__typing import (
     TypeVar, Any, TextIO, Literal, Iterable, NamedTuple,
     Generic, Unpack, TypeVarTuple, ContextManager, Self,
     overload, Iterator, Generator, assertIsinstance,
     Mapping, Callable, Tuple, )
-from holo.dummys import DummyContext
-from holo.prettyFormats import prettyPrint, prettyTime, _ObjectRepr, print_exception
-from holo.treeStrcutures import Node_Words, RootTreeIter, TreeIter
-from holo.pointers import Pointer, ListPointer
-from holo.protocols import _T, _T2, SupportsIndex, Sized
+from .dummys import DummyContext
+from .prettyFormats import prettyPrint, prettyTime, _ObjectRepr, print_exception
+from .treeStrcutures import Node_Words, RootTreeIter, TreeIter
+from .pointers import Pointer, ListPointer
+from .protocols import _T, _T2, SupportsIndex, Sized
 
 
 _Contexts = TypeVarTuple("_Contexts") # NOTE: can't be bound to contexts only:(

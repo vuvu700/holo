@@ -1,5 +1,5 @@
-from holo.protocols import SupportsRead
-from holo import Pointer
+from .protocols import SupportsRead
+from . import Pointer
 
 class ReaderFast:
     def __init__(self, file:SupportsRead[bytes], readSize:int|None=None)->None: ...

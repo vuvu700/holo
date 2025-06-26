@@ -1,5 +1,5 @@
-from holo.__typing import overload, cast
-from holo.prettyFormats import prettyTime
+from .__typing import overload, cast
+from .prettyFormats import prettyTime
 
 
 class TimeUnite:

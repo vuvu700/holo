@@ -1,5 +1,5 @@
-from holo.__typing import (Generic, Callable, NoReturn)
-from holo.protocols import _T, _P
+from .__typing import (Generic, Callable, NoReturn)
+from .protocols import _T, _P
 
 
 

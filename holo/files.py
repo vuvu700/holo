@@ -5,12 +5,12 @@ from io import StringIO as _StringIO, DEFAULT_BUFFER_SIZE
 import random as _random
 import re
 
-from holo.__typing import (
+from .__typing import (
     Literal, NamedTuple, Generator, Callable,
     DefaultDict, Iterable, TypeAlias, Union,
     Generic, overload, cast
 )
-from holo.protocols import (
+from .protocols import (
     _T_co_Sized, SupportsRichComparison, SupportsRead,
     SupportsFileWrite,
 )

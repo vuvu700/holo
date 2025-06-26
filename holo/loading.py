@@ -1,6 +1,6 @@
 import time
 
-from holo.__typing import Literal
+from .__typing import Literal
 
 class Loading():
     def __init__(self, name:str, smoothing:float=0.0)->None:

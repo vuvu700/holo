@@ -37,8 +37,8 @@ else: from typing import (
 if TYPE_CHECKING:
     # => not executed
     print("hello")
-    from holo.protocols import SupportsPretty, SupportsStr, ClassFactoryProtocol, _T
-    from holo.prettyFormats import _ObjectRepr
+    from .protocols import SupportsPretty, SupportsStr, ClassFactoryProtocol, _T
+    from .prettyFormats import _ObjectRepr
 
 
 _T_ClassFactory = TypeVar("_T_ClassFactory", bound="type[ClassFactory]")

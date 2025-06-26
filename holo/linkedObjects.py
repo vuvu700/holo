@@ -1,15 +1,15 @@
 import random, math
 import warnings
 
-from holo.__typing import (
+from .__typing import (
     Generic, Iterable, Generator, Iterator,
     overload, Literal, cast, Callable, 
     FinalClass, TypeVar, Self, override,
     assertIsinstance, Sequence,
 )
-from holo.protocols import (
+from .protocols import (
     _T, _T2, SupportsLowersComps, SupportsSort, SupportsIndex)
-from holo.prettyFormats import _ObjectRepr
+from .prettyFormats import _ObjectRepr
 
 class EmptyError(Exception):
     """when an invalid action was tryed on an empty object"""

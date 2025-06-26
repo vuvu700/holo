@@ -2,7 +2,7 @@ from collections.abc import (
     Awaitable, Iterable, Set as AbstractSet, 
     Sized, Container, Iterator, Collection,
 )
-from holo.__typing import (
+from .__typing import (
     Protocol, TypeVar, Any, TypeAlias, Union, runtime_checkable,
     Mapping, Sequence, NamedTuple, TYPE_CHECKING, overload, Self,
     _PrettyPrintable, TracebackType, Callable, Concatenate, ParamSpec,
@@ -10,7 +10,7 @@ from holo.__typing import (
 )
 
 if TYPE_CHECKING:
-    from holo.prettyFormats import _Pretty_CompactRules
+    from .prettyFormats import _Pretty_CompactRules
 
 # some code extracted from /*vscode-pylance*/dist/typeshed_fallback/stdlib/_typeshed/__init__.py
 

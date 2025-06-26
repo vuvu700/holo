@@ -1,5 +1,5 @@
-from holo.__typing import ContextManager, Callable
-from holo.protocols import _T, _P
+from .__typing import ContextManager, Callable
+from .protocols import _T, _P
 
 
 class DummyContext(ContextManager):

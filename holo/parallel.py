@@ -1,32 +1,31 @@
 from collections.abc import Callable, Iterable
-from queue import Queue, Empty as EmptyError
-import threading
-import traceback
 
-from holo.__typing import (
-    Callable, Any, Iterable, Generic, 
-    overload, Literal,
-)
-from holo.prettyFormats import basic__strRepr__, print_exception
-from holo.protocols import _T, _P, SupportsIterableSized
-from holo import Pointer, assertIsinstance
+from queue import Queue
+import threading
+
+import multiprocess
 import multiprocess.managers
 import multiprocess.process
 import multiprocess.queues
 import multiprocess.synchronize
 
+from .__typing import (
+    Callable, Any, Iterable, Generic, )
+from .prettyFormats import PrettyfyClass, basic__strRepr__, print_exception
+from .protocols import _T, _P, SupportsIterableSized
+from . import Pointer, assertIsinstance
+
+
+### Globals ### 
+
+_MP_Process: "type[multiprocess.process.BaseProcess]" = \
+    assertIsinstance(type, multiprocess.Process) # type: ignore # yes it exist ?!
+
+
+### Tasks ### 
 @basic__strRepr__
-class TaskNoReturn():
-    __slots__ = ("func", "funcArgs", "funcKwargs")
-    def __init__(self, func:"Callable[_P, None]", 
-                 *funcArgs:_P.args, **funcKwargs:_P.kwargs) -> None:
-        self.func = func
-        self.funcArgs = funcArgs
-        self.funcKwargs = funcKwargs
-    
-@basic__strRepr__
-class TaskWithReturn(Generic[_T]):
-    __slots__ = ("func", "funcArgs", "funcKwargs")
+class Task(Generic[_T], PrettyfyClass):
+    __slots__ = ("func", "funcArgs", "funcKwargs", )
     def __init__(self, func:"Callable[_P, _T]", 
                  *funcArgs:_P.args, **funcKwargs:_P.kwargs) -> None:
         self.func = func
@@ -36,18 +35,30 @@ class TaskWithReturn(Generic[_T]):
         """internal function that remove the _P typing constraints"""
         return (self.func, self.funcArgs, self.funcKwargs)
 
-@basic__strRepr__
-class TaskWithReturn_MP(Generic[_T]):
-    __slots__ = ("taskID", "func", "funcArgs", "funcKwargs")
+class TaskNoReturn(Task[None]):
+    ...
+
+
+class Task_MP(Task[_T]):
+    __slots__ = ("taskID", )
     def __init__(self, taskID:int, func:"Callable[_P, _T]", 
                  *funcArgs:_P.args, **funcKwargs:_P.kwargs) -> None:
+        super().__init__(func=func, *funcArgs, **funcKwargs)
         self.taskID: int = taskID
-        self.func = func
-        self.funcArgs = funcArgs
-        self.funcKwargs = funcKwargs
 
 
-class Worker(threading.Thread):
+
+### base Manager ### 
+
+
+class _BaseManger(Generic[_T]):
+    __slots__ = ()
+
+
+### Multi Threading ### 
+
+
+class _Worker(threading.Thread):
     def __init__(self, manager:"Manager")->None:
         super().__init__(daemon=True)
         self.manager = manager
@@ -68,7 +79,7 @@ class Worker(threading.Thread):
 class Manager():
     def __init__(self, nbWorkers:int, startPaused:bool=False)->None:
         self._tasksList:"Queue[TaskNoReturn]" = Queue()
-        self.__workers:"list[Worker]" = [Worker(self) for _ in range(nbWorkers)]
+        self.__workers:"list[_Worker]" = [_Worker(self) for _ in range(nbWorkers)]
         self.__runningEvent: threading.Event = threading.Event()
         self.setPaused(startPaused)
         # start the workers
@@ -110,7 +121,7 @@ class Manager():
         """return when all tasks are finished"""
         self._tasksList.join()
 
-    def runBatchWithReturn(self, tasks:"SupportsIterableSized[TaskWithReturn[_T]]")->"list[_T]":
+    def runBatchWithReturn(self, tasks:"SupportsIterableSized[Task[_T]]")->"list[_T]":
         """execute the `tasks` with the manager (blocking)\n
         return a list of results as [tasks[0] -> res[0], ..., tasks[n] -> res[n]]"""
         # create pointers to grab each results
@@ -133,7 +144,7 @@ def taskResultGraber(func:"Callable[_P, _T]", resPtr:"Pointer[_T]", *funcArgs:_P
     """a util function that put the result of `func` in `resPtr`"""
     resPtr.value = func(*funcArgs, **funcKwargs)
 
-def parallelExec(tasks:"SupportsIterableSized[TaskWithReturn[_T]]", nbWorkers:"int|None")->"list[_T]":
+def parallelExec(tasks:"SupportsIterableSized[Task[_T]]", nbWorkers:"int|None")->"list[_T]":
     """execute the `tasks` in parallel with `nbWorkers` workers\n
     `nbWorkers`: int -> the numbr of worker to create, None -> create one worker per tasks\n
     return a list of results as [tasks[0] -> res[0], ..., tasks[n] -> res[n]]"""
@@ -154,9 +165,12 @@ def parallelExec(tasks:"SupportsIterableSized[TaskWithReturn[_T]]", nbWorkers:"i
     
 
 
-import multiprocess
-_MP_Process: "type[multiprocess.process.BaseProcess]" = \
-    assertIsinstance(type, multiprocess.Process) # type: ignore
+
+### Multi Processing ### 
+
+
+
+
 
 class MP_Exception():
     __slots__ = ("err", )
@@ -173,7 +187,7 @@ class ProcessWorker(_MP_Process, Generic[_T]):
             # handle pausing the workers
             self.manager.waitUntilRunning()
             # try to get some work
-            task: "TaskWithReturn_MP[_T]" = self.manager._tasksQueue.get()
+            task: "Task_MP[_T]" = self.manager._tasksQueue.get()
             #=> got some work => do it
             try: 
                 result = task.func(*task.funcArgs, **task.funcKwargs)
@@ -255,11 +269,11 @@ class ProcessManager(Generic[_T]):
         """add the work to the stack, will start when a worker will be available\n
         if you need to return a value, consider callbacks, or use a Pointer\n
         return the taskID of the generated task (use it to get the result)"""
-        return self.addTask(TaskWithReturn(func, *funcArgs, **funcKwargs))
-    def addTask(self, task:TaskWithReturn[_T])->int:
+        return self.addTask(Task(func, *funcArgs, **funcKwargs))
+    def addTask(self, task:Task[_T])->int:
         """add the task to the stack, will start when a worker will be available"""
         taskID: int = self.__giveTaskID()
-        self._tasksQueue.put(TaskWithReturn_MP(
+        self._tasksQueue.put(Task_MP(
             taskID, task.func, *task.funcArgs, **task.funcKwargs))
         return taskID
     
@@ -268,7 +282,7 @@ class ProcessManager(Generic[_T]):
             return self._results.pop(taskID)
         else: return self._results[taskID]
     
-    def runBatch(self, tasks:"SupportsIterableSized[TaskWithReturn[_T]]")->"list[_T]":
+    def runBatch(self, tasks:"SupportsIterableSized[Task[_T]]")->"list[_T]":
         """execute the `tasks` with the manager (blocking)\n
         return a list of results as [tasks[0] -> res[0], ..., tasks[n] -> res[n]]\n
         if some exceptions happends, will print thelm all then raise a RuntimeError"""

@@ -1,12 +1,12 @@
 import time
 
-from holo.__typing import (
+from .__typing import (
     TextIO, TypeVar, Callable, Literal,
 )
 
-from holo import print_exception
-from holo.dummys import dummyWrapper, dummyWrapperOfWrapper
-from holo.protocols import _T, _P
+from . import print_exception
+from .dummys import dummyWrapper, dummyWrapperOfWrapper
+from .protocols import _T, _P
 
 
 _FailType = TypeVar("_FailType")

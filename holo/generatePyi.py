@@ -2,8 +2,8 @@ from mypy import stubgen
 from pathlib import Path
 import shutil, os
 
-from holo.files import copyTree
-from holo.__typing import NamedTuple, Union
+from .files import copyTree
+from .__typing import NamedTuple, Union
 
 class ModuleExport(NamedTuple):
     moduleName: str

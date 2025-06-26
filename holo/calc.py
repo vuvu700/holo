@@ -1,8 +1,8 @@
 from math  import gcd, ceil, sqrt, factorial as fac, pi, exp, erf
 from decimal import Decimal, getcontext as decimal_getContext
 
-from holo.__typing import Iterable, MutableSequence, TypeVar
-from holo.protocols import (
+from .__typing import Iterable, MutableSequence, TypeVar
+from .protocols import (
     _T, _T_co, _T_contra, SupportsDivModRec,
     SupportsLenAndGetItem,
 )

@@ -4,8 +4,8 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from io import TextIOWrapper
 
-from holo.__typing import Union, TextIO, Literal, overload
-from holo.files import StrPath
+from .__typing import Union, TextIO, Literal, overload
+from .files import StrPath
 
 FULL_TIME_FORMAT = "%d/%m/%Y %H:%M:%S"
 HOUR_TIME_FORMAT = "%H:%M:%S"

@@ -3,17 +3,19 @@ import traceback
 from io import StringIO, TextIOBase
 from datetime import timedelta
 import re
+from copy import deepcopy
 
-from holo.calc import divmod_rec
-from holo.__typing import (
+
+from .calc import divmod_rec
+from .__typing import (
     Any, TextIO, BinaryIO, NamedTuple, Callable, 
     Mapping, Iterable, Sequence, AbstractSet,
     TypeVar, Sized, Literal, TypeGuard, FrameType,
     Sequence, _PrettyPrintable, assertIsinstance,
     isNamedTuple, CodeType, JsonTypeAlias, NoReturn, 
-    ClassVar, getAttrName, cast, ClassFactory, _ownAttr,
+    ClassVar, getAttrName, Self, ClassFactory, _ownAttr,
 )
-from holo.protocols import _T, SupportsPretty, SupportsSlots, SupportsWrite
+from .protocols import _T, SupportsPretty, SupportsSlots, SupportsWrite
 
 # TODO:
 # apporter les ameiorations nécessaires pour pouvoir specificCompact les _ObjectRepr en fonction du type
@@ -157,15 +159,44 @@ class _ObjectRepr(NamedTuple):
     kwargs:"dict[str, _PrettyPrintable]"
     kwargs_keyToValue:str = "="
     separator:str = ","
+    forceStrKey: bool = True
+    """this will make the key to be always printed with str"""
 
     def __len__(self)->int:
         return len(self.args) + len(self.kwargs)
 
+    def __getStrRepr(self, func:"Callable[[object], str]")->str:
+        """base of __getStrRepr where func is applied to each elements contained"""
+        subStrings: list[str] = [
+            self.className, "(", ]
+        isFirst: bool = True
+        for elt in self.args:
+            if not isFirst: 
+                subStrings.append(", ")
+            else: isFirst = False
+            subStrings.append(func(elt))
+        for name, elt in self.kwargs.items():
+            if not isFirst: 
+                subStrings.append(", ")
+            else: isFirst = False
+            subStrings.append(f"{name}=")
+            subStrings.append(func(elt))
+        subStrings.append(")")
+        return "".join(subStrings)
+    
+    def getStr(self)->str:
+        """get a basic python `__str__` of object represented by `self`"""
+        return self.__getStrRepr(str)
+
+    def getRepr(self)->str:
+        """get a basic python `__repr__` of object represented by `self`"""
+        return self.__getStrRepr(repr)
+
 
 def __prettyPrint_internal__print_Generic(
         objItems:"Iterable[_PP_KeyValuePair]|Iterable[_PrettyPrintable]", isMapping:bool,
-        separatorSequence:str, keyToValue_sequence:str, delimiter:"_Pretty_Delimiter",
-        currCompactRules:"_Pretty_CompactRules", printEndingSeparator:bool,
+        separatorSequence:str, keyToValue_sequence:str, delimiter:"_Pretty_Delimiter", 
+        forceStrKey:bool, currCompactRules:"_Pretty_CompactRules", printEndingSeparator:bool,
         printStartingSequence:bool, printEndingSeqence:bool, currLineIndent:int,
         specificFormats:"dict[type[_T], Callable[[_T], str|_PrettyPrintable]]|None",
         currenCompactState:"_PP_compactState", fixedArgs:"_PrettyPrint_fixedArgs")->None:
@@ -199,20 +230,23 @@ def __prettyPrint_internal__print_Generic(
             fixedArgs.stream.write(separatorSequence)
         if (isMapping is True) and isinstance(subObj, _PP_KeyValuePair):
             # key
-            __prettyPrint_internal(
-                obj=subObj.key, currLineIndent=currLineIndent+1, 
-                prettyfyFromObj=None, specificFormats=specificFormats,
-                oldCompactState=currenCompactState.force(currCompactRules.key),
-                fixedArgs=fixedArgs,
-                # to force compacting state seem better for a key
-            )
+            if forceStrKey is True:
+                fixedArgs.stream.write(str(subObj.key))
+            else: 
+                __prettyPrint_internal(
+                    obj=subObj.key, currLineIndent=currLineIndent+1, 
+                    prettyfyFromObj=None, specificFormats=specificFormats,
+                    oldCompactState=currenCompactState.force(currCompactRules.key),
+                    fixedArgs=fixedArgs,
+                    # to force compacting state seem better for a key
+                )
             # key to value
             fixedArgs.stream.write(keyToValue_sequence)
             value = subObj.value
             
         elif isMapping is True:
             # => (isMapping is True) and NOT isinstance(subObj, _PP_KeyValuePair)
-            raise TypeError(f"while in mapping mode, the subObj isn't an instance of {_PP_KeyValuePair} but {type(subObj)}")
+            raise TypeError(f"while in mapping mode, the subObj of type {type(subObj)} isn't an instance of {_PP_KeyValuePair}")
         
         else: # => generic sequence
             value = subObj
@@ -248,17 +282,18 @@ def __prettyPrint_internal__print_ObjectRepr(
     #   will print a starting sequence and an ending sequence
     if len(obj_repr) != 0: # => things to print
         __prettyPrint_internal__print_Generic(
-            objItems=obj_repr.args, isMapping=False,
+            objItems=obj_repr.args, isMapping=False, 
             printEndingSeparator=(len(obj_repr.kwargs) != 0),
             separatorSequence=obj_repr.separator, keyToValue_sequence="",
-            delimiter=EMPTY_DELIM, currCompactRules=currCompactRules,
-            printStartingSequence=True, printEndingSeqence=False,
-            currLineIndent=currLineIndent, specificFormats=specificFormats,
-            currenCompactState=currenCompactState, fixedArgs=fixedArgs,
+            delimiter=EMPTY_DELIM, forceStrKey=False, 
+            currCompactRules=currCompactRules, printStartingSequence=True,
+            printEndingSeqence=False, currLineIndent=currLineIndent,
+            specificFormats=specificFormats, currenCompactState=currenCompactState,
+            fixedArgs=fixedArgs,
         )
         __prettyPrint_internal__print_Generic(
             objItems=_iterableToPairs(obj_repr.kwargs.items()), isMapping=True,
-            separatorSequence=obj_repr.separator,
+            separatorSequence=obj_repr.separator, forceStrKey=obj_repr.forceStrKey,
             keyToValue_sequence=obj_repr.kwargs_keyToValue,
             printEndingSeparator=False, delimiter=EMPTY_DELIM, 
             currCompactRules=currCompactRules._replace(mapSpacing=True),
@@ -339,7 +374,7 @@ def __prettyPrint_internal(
             (obj.items() if isinstance(obj, Mapping) else obj._asdict().items())
        
         __prettyPrint_internal__print_Generic(
-            objItems=_iterableToPairs(objItems), isMapping=True,
+            objItems=_iterableToPairs(objItems), isMapping=True, forceStrKey=False,
             separatorSequence=",", keyToValue_sequence=":", printEndingSeparator=False,
             delimiter=delimiter, currCompactRules=currentCompactRules,
             printStartingSequence=True, printEndingSeqence=True,
@@ -352,7 +387,7 @@ def __prettyPrint_internal(
         delimiter = _PP_specialDelimChars.get(type(obj), DEFAULT_ITERABLE_DELIM)
         
         __prettyPrint_internal__print_Generic(
-            objItems=obj, isMapping=False,
+            objItems=obj, isMapping=False, forceStrKey=False,
             separatorSequence=",", keyToValue_sequence="", printEndingSeparator=False,
             delimiter=delimiter, currCompactRules=currentCompactRules,
             printStartingSequence=True, printEndingSeqence=True,
@@ -577,114 +612,198 @@ def toJSON_basicTypes(obj:"None|bool|int|float|str|object")->"str|NoReturn":
         else: raise TypeError(f"the value of the given type: {type(obj)} isn't supported (only support builtin types, no inheritance)")
 
 
+@prettyfyNamedTuple
+class PrettyfyClassConfig(NamedTuple):
+    showAttrs: "list[str]"
+    """all the attrs to show"""
+    hideAttrs: "list[str]"
+    """all the attrs to always hide (overwrite the showAttrs)"""
+    showDict: bool
+    """whethere to shwo the __dict__"""
+    addNewSlots: bool
+    """when setuping a new class, gather the __slots__ to showAttrs"""
+    mergeWithParent: bool
+    """when setuping a new class, add the config from the parents\n
+    it will merge all the parents"""
 
+    def copy(self)->"Self":
+        return deepcopy(self)
+    
+    def addAttrs(self, attrsToShow:"list[str]", 
+                  attrsToHide:"list[str]", inplace:bool)->"Self":
+        if inplace is False:
+            self = self.copy()
+        self.showAttrs.extend(attrsToShow)
+        self.hideAttrs.extend(attrsToHide)
+        return self
+
+    def mergeWith(self, other:"PrettyfyClassConfig")->"PrettyfyClassConfig":
+        """raw merge: (add the lists) and (apply or to the booleans)"""
+        def removeDups(lst:"list[str]")->"list[str]":
+            known: "set[str]" = set()
+            res: "list[str]" = []
+            for elt in lst:
+                if elt not in known:
+                    res.append(elt)
+                    known.add(elt)
+            return res
+        
+        return PrettyfyClassConfig(
+            showAttrs=removeDups(self.showAttrs + other.showAttrs),
+            hideAttrs=removeDups(self.hideAttrs + other.hideAttrs),
+            showDict=(self.showDict or other.showDict),
+            addNewSlots=(self.addNewSlots or other.addNewSlots),
+            mergeWithParent=(self.mergeWithParent or other.mergeWithParent))
+
+
+
+_T_PrettyfyClass = TypeVar("_T_PrettyfyClass", bound="type[PrettyfyClass]")
 
 class PrettyfyClass(ClassFactory):
-    """## when defining __prettyAttrs__ :
-    ### this is the behavious before adding attrs from bases (if getPrettyAttrs_fromBases)
-    - not defined -> use 'all'
-    - 'all' -> get all from __dict__ (if it has one) and __slots__ (if it has one) 
-        * only add the attrs from __slots__ if it was defined in the class, not from a super class
-        * 'all' will be changed to tuple[list[str], True] in order to simplify the process
-    - list[str] -> add the attrs from the list (can be __slots__/__dict__ class)
-        * private attrs must be the ones from the class where __prettyAttrs__ is setted
-        * list[str] will be changed to tuple[list[str], None] in order to simplify the process
-    - tuple[(1), (2)] -> (this is what the class will have after the __init_subclass__)
-        * (1) list[str] -> (like - 'list[str]'),
-        * (2) bool: True -> get all from the self.__dict__ | False -> do nothing
-    when dealing with attrs, use `withAttrs`=True kwarg in the init, NOTE: the other kwargs will be disabled,
-        re-use `withAttrs` each time you use attrs"""
-    __prettyAttrs__: "ClassVar[list[str]|Literal['all']|tuple[list[str], bool]]"
+    """will add an advanced __pretty__ methode that you can configure\n
+    setup a default __str__ or __rep__ based on __prettyAttrs__:
+        * str and repr will be `prettyString` with `compact=...` to oneLine it (can be overwriten)
+            you can give *args / **kwargs to `prettyString`"""
+    __prettyAttrs__: "ClassVar[PrettyfyClassConfig]"
+    """if you don't define it => if THIS class is explicitly a ... class
+        * __slots__ -> it will add all the new atributs of THIS class and show the __dict__
+        * __dict__ -> will add all content of the __dict__ even the ones of previous classes"""
+    __with_attrs__: "ClassVar[bool]" = False
+    """to tell wether the class is being created with attrs\n
+    this will propagate to subclasses until a new rule is given\n
+    False will configure the class at his creation
+    True will wait until __attrs_attrs__ is owned by the class"""
+    __overwrite_strRepr__: "ClassVar[bool]" = False
+    """to tell wether the class will force using the __str/repr__ of PrettyfyClass\n
+    this will propagate to subclasses until a new rule is given"""
     __slots__ = ()
+    
+    __str_compact_args = PrettyPrint_CompactArgs(
+        compactSmaller=0, compactLarger=0, keepReccursiveCompact=True)
     
     def __init_subclass__(cls:"type[PrettyfyClass]", **kwargs)->None:
         ClassFactory._ClassFactory__registerFactoryUser(cls, **kwargs)
     
     @staticmethod
     def _ClassFactory__initSubclass(
-            subClass:"type[PrettyfyClass]", withAttrs:bool=False, 
-            addPrettyAttrs_fromBases:"bool|None"=True, **kwargs) -> None:
-        #print(f"\n* start * {getattr(subClass, '__prettyAttrs__', None)} *")
-        if withAttrs is True:
-            assert _ownAttr(subClass, "__attrs_attrs__") is False, \
-                RuntimeError(f"attrs has alredy been applyed to this class")
-            #print("* 0.1")
-            if (_ownAttr(subClass, "__prettyAttrs__") is False):
-                subClass.__prettyAttrs__ = "all"
-            return # => wait until attrs is applied
+            subClass:"type[PrettyfyClass]", **kwargs) -> None:
+        #print(f"\n* start on {subClass} -> {getattr(subClass, '__prettyAttrs__', None)} *")
+        if subClass.__with_attrs__ is True:
+            # wait until attrs has been applied
+            #print("* 0.1.1")
+            if (_ownAttr(subClass, "__attrs_attrs__") is False):
+                #print("* 0.2")
+                return # => wait until attrs has been applied
+            #print("* 0.1.2")
         
-        ## start of the normal process
         if _ownAttr(subClass, "__pretty__"):
-            raise AttributeError(f"the sub class: {subClass} must not define a __pretty__ methode, it is done by the factory")
-        if (_ownAttr(subClass, "__prettyAttrs__") is False):
-            # => wasn't defined in the class (or constructed with attrs)
-            if hasattr(subClass, "__prettyAttrs__") is False:
-                # => no bases have it defined => new -> all
-                subClass.__prettyAttrs__ = "all"
-                #print("* 1.1")
-            else: # => merge it from bases (done later)
-                subClass.__prettyAttrs__ = (list(), False)
-                #print("* 1.2")
-        #else: print("* 1.3")
-        # => __prettyAttrs__ is the one of the class
-        if subClass.__prettyAttrs__ == "all":
-            subClass.__prettyAttrs__ = (list(), True)
-            if _ownAttr(subClass, "__slots__"): # => __slots__ class
-                subClass.__prettyAttrs__[0].extend(
-                    (getAttrName(subClass, name) for name in getattr(subClass, "__slots__")
-                     if name != "__weakref__"))
-                #print("* 2.1.1")
-            #else: print("* 2.1.2")
-            # else => __dict__ class => 'all' is sufficient, nothing more to add
-        else: # => list[str] | tuple[list[str], True]
-            # transform the names to attrNames
-            if isinstance(subClass.__prettyAttrs__, tuple):
-                subClass.__prettyAttrs__ = (
-                    [getAttrName(subClass, name) for name in subClass.__prettyAttrs__[0]], 
-                    subClass.__prettyAttrs__[1])
-                #print("* 2.2.1")
-            else: # => list[str]
-                subClass.__prettyAttrs__ = ([getAttrName(subClass, name) for name in subClass.__prettyAttrs__], False)
-                #print("* 2.2.2")
-        #print(f"* 3 -> {subClass.__prettyAttrs__}")
-        # => the transformation of __prettyAttrs__ is done
+            raise AttributeError(
+                f"the sub class: {subClass} (or one if its base) "
+                "must not redefine a __pretty__ methode, it is done by the factory")
         
-        if addPrettyAttrs_fromBases is False:
-            #print("* 4.1\n")
-            return None # => finished here
-        # add the __prettyAttrs__ from the bases
-        set_getDict: bool = subClass.__prettyAttrs__[1]
-        from_bases: list[str] = []
-        for baseClasse in subClass.__bases__:
-            if (baseClasse is PrettyfyClass) or (): continue
-            if not issubclass(baseClasse, PrettyfyClass):
-                continue
-            attrs, getDict = cast("tuple[list[str], bool]", baseClasse.__prettyAttrs__)
-            from_bases.extend(attrs)
-            if getDict == True: set_getDict = True
-            # else: => keep it
-        from_bases.extend(subClass.__prettyAttrs__[0])
-        subClass.__prettyAttrs__ = (from_bases, set_getDict)
-        #print(f"* 4.2 -> {subClass.__prettyAttrs__}\n")
+        if subClass.__overwrite_strRepr__ is True:
+            subClass.__str__ = PrettyfyClass.__str__
+            subClass.__repr__ = PrettyfyClass.__repr__
+        
+        if _ownAttr(subClass, "__prettyAttrs__") is False:
+            # => (__prettyAttrs__ not owned)
+            if hasattr(subClass, "__prettyAttrs__") is False:
+                # => no bases have it defined => all (default behaviour)
+                subClass.__prettyAttrs__ = PrettyfyClassConfig(
+                    showAttrs=PrettyfyClass.__collect_all_new_of_slots(subClass),
+                    hideAttrs=[], showDict=True, addNewSlots=True, mergeWithParent=True)
+                #print(f"* 1.1 -> final: {subClass.__prettyAttrs__}")
+                return # finished here
+            else: # => it is alredy define on a base
+                # => merge with the base
+                #print(f"* 1.2.1 -> base: {subClass.__prettyAttrs__}")
+                newConfig = subClass.__prettyAttrs__.copy() # copy the one from the base
+                if newConfig.addNewSlots is True:
+                    newConfig.addAttrs(
+                        attrsToShow=PrettyfyClass.__collect_all_new_of_slots(subClass),
+                        attrsToHide=[], inplace=True)
+                subClass.__prettyAttrs__ = newConfig
+                #print(f"* 1.2.2 -> final: {subClass.__prettyAttrs__}")
+                return # finished here
+        else: 
+            # => (__prettyAttrs__ is owned) => defined by the user
+            #print(f"* 1.3.1 -> before: {subClass.__prettyAttrs__}")
+            if subClass.__prettyAttrs__.mergeWithParent is True:
+                # => find the nearest one in a base
+                merged_base_cfg = PrettyfyClass.__get_base_cfg(subClass)
+                if merged_base_cfg is not None:
+                    subClass.__prettyAttrs__ = merged_base_cfg.mergeWith(
+                        subClass.__prettyAttrs__)
+                if subClass.__prettyAttrs__.addNewSlots is True:
+                    subClass.__prettyAttrs__.addAttrs(
+                        attrsToShow=PrettyfyClass.__collect_all_new_of_slots(subClass),
+                        attrsToHide=[], inplace=True)
+            #print(f"* 1.3.2 -> final: {subClass.__prettyAttrs__}")
+            return  # finished here
+    
+    
+    
+    @staticmethod
+    def __get_base_cfg(subClass:"type[PrettyfyClass]")->"PrettyfyClassConfig|None":
+        """return a copy of the cofig from the base (no merge betwin is done)"""
+        merged_cfg: "PrettyfyClassConfig|None" = None
+        for base in subClass.__bases__:
+            base_cfg = getattr(base, "__prettyAttrs__", None)
+            if isinstance(base_cfg, PrettyfyClassConfig):
+                if merged_cfg is None:
+                    merged_cfg = base_cfg
+                else: merged_cfg.mergeWith(base_cfg.copy())
+        return merged_cfg
+                
+    
+    @staticmethod
+    def __collect_all_new_of_slots(subClass:"type[PrettyfyClass]")->"list[str]":
+        """if the class is slotted -> return all new slots (tuple)
+        if class is dict based -> empty tuple"""
+        if _ownAttr(subClass, "__slots__"): 
+            # => __slots__ class
+            return [getAttrName(subClass, name)
+                    for name in getattr(subClass, "__slots__")
+                    if name != "__weakref__"]
+        else: # => __dict__ class 
+            return []
+
 
     @staticmethod
-    def wrapClass(target:"_T_Type")->"_T_Type":
+    def wrapClass(use_prettyAttrs:"PrettyfyClassConfig|None"=None):
         """small workaround for decorated class that whould have a multiple init_subclass\n
+        the prettyAttrs config will be given to the __init_subclass__ (if None use the default cfg)\n
         place it before the @decorator that edit the class\n
         when using the wrapper, dont use heritage"""
-        PrettyfyClass._ClassFactory__initSubclass(target)
-        target.__pretty__ = PrettyfyClass.__pretty__
-        return target
-
+        def apply(cls:"_T_PrettyfyClass")->"_T_PrettyfyClass":
+            if use_prettyAttrs is None:
+                # => reset the __prettyAttrs__
+                del cls.__prettyAttrs__ # because the subclass will own it
+            else: # => a custom __prettyAttrs__
+                cls.__prettyAttrs__ = use_prettyAttrs
+            PrettyfyClass._ClassFactory__initSubclass(cls)
+            return cls
+        return apply
     
     def __pretty__(self, *_, **__) -> _ObjectRepr:
+        if _ownAttr(self.__class__, "__prettyAttrs__") is False:
+            raise AttributeError(f"the class: {self.__class__} migth not have been configured")
+        cfg = self.__prettyAttrs__
         attrsToValue: "dict[str, Any]" = {}
-        attrs, getDict = cast("tuple[list[str], bool]", self.__prettyAttrs__)
-        for attrName in attrs: 
+        for attrName in cfg.showAttrs: 
             attrsToValue[attrName] = getattr(self, attrName)
-        if (getDict is True) and hasattr(self, "__dict__"):
+        if (cfg.showDict is True) and hasattr(self, "__dict__"):
             attrsToValue.update(self.__dict__)
-        return _ObjectRepr(className=self.__class__.__name__, args=(), kwargs=attrsToValue)
+        return _ObjectRepr(className=self.__class__.__name__, args=(), 
+                           kwargs=attrsToValue, forceStrKey=True)
+
+    def __str__(self, **kwargs) -> str:
+        """get str of a oneLined of self.__pretty__"""
+        return prettyString(self.__pretty__(), compact=self.__str_compact_args,**kwargs, defaultStrFunc=str)
+    
+    def __repr__(self, **kwargs) -> str:
+        """get repr of a oneLined of self.__pretty__"""
+        return prettyString(self.__pretty__(), compact=self.__str_compact_args, **kwargs, defaultStrFunc=repr)
 
 
 class SingleLinePrinter():

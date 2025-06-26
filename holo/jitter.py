@@ -6,7 +6,7 @@ import attrs
 import numba
 from numba.core.typing.templates import Signature
 
-from holo.__typing import (
+from .__typing import (
     Literal, TypeAlias, Iterable, 
     Protocol, FinalClass, )
 

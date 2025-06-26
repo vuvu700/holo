@@ -1,7 +1,7 @@
-from holo.__typing import List, overload, Callable, Literal, Tuple
-from holo.types_ext import _1dArray_Float, _2dArray_Float, _3dArray_Float
-from holo import separate
-from holo.prettyFormats import prettyPrint
+from .__typing import List, overload, Callable, Literal, Tuple
+from .types_ext import _1dArray_Float, _2dArray_Float, _3dArray_Float
+from . import separate
+from .prettyFormats import prettyPrint
 
 _Verbose = Literal[0, 1, 2]
 _Selection = Literal["uniform", "bests", "worsts", "ordered"]

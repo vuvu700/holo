@@ -1,7 +1,7 @@
 
-from holo.protocols import _T, SupportsIndex
+from .protocols import _T, SupportsIndex
 
-from holo.__typing import (
+from .__typing import (
     Generic, Iterator, Iterable, MutableSequence,
     overload,
 )

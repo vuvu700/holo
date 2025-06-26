@@ -4,13 +4,13 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from holo.__typing import (
+from .__typing import (
     NamedTuple, _PrettyPrintable, Literal,
     OrderedDict, assertListSubType, assertIsinstance,
     Union, Any, overload,
 )
-from holo.pointers import Pointer
-from holo.prettyFormats import (
+from .pointers import Pointer
+from .prettyFormats import (
     prettyPrint, prettyfyNamedTuple, 
     _ObjectRepr, _Pretty_CompactRules,
 )
@@ -420,7 +420,7 @@ images.revert()
 """
 
 """
-from holo.prettyFormats import prettyTime
+from .prettyFormats import prettyTime
 presets = ["ultrafast", "superfast", "veryfast", "faster", "fast",
     "medium", "slow", "slower", "veryslow", "placebo"]
 prof = Profiler(presets)
@@ -437,7 +437,7 @@ prettyPrint(prof.avgTimes(), specificFormats={float: prettyTime})
 """
 
 """
-from holo.prettyFormats import prettyTime
+from .prettyFormats import prettyTime
 bRates = [50, 100, 500, 1_000, 5_000]
 prof = Profiler(bRates)
 for index, rate in enumerate(bRates):
@@ -452,7 +452,7 @@ prettyPrint(prof.avgTimes(), specificFormats={float: prettyTime})
 """
 
 """
-from holo.prettyFormats import prettyTime
+from .prettyFormats import prettyTime
 bRates = [0.5, 0.75, 0.9, 1.0, 1.2, 1.5]
 prof = Profiler(bRates)
 for index, rate in enumerate(bRates):

@@ -1,4 +1,4 @@
-from holo.__typing import (
+from .__typing import (
     Any, Generator, Iterable, NamedTuple,
     Union, overload, Literal, Self, 
 )
@@ -7,7 +7,7 @@ import os
 import ast
 import inspect
 
-from holo import print_exception
+from . import print_exception
 
 HOLO_DIR:str = Path(__file__).parent.as_posix()
 HOLO_SUB_MODULES:"list[str]" = os.listdir(HOLO_DIR)

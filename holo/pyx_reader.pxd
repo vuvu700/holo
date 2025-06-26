@@ -3,8 +3,8 @@ from Cython.Includes.cpython cimport PyObject
 
 from pyx_datatypes cimport BytesSlice, BytesIO_like, String
 
-from holo.protocols import SupportsRead
-from holo import Pointer
+from .protocols import SupportsRead
+from . import Pointer
 
 
 cdef struct Reader2:

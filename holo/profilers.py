@@ -2,12 +2,12 @@ from collections import deque
 from time import perf_counter
 from datetime import datetime, timedelta
 
-from holo.__typing import (
+from .__typing import (
     Iterable, Callable, Any, Iterable,
     Generic, TypeVar, ContextManager,
     LiteralString, Self, TypeGuard, Literal,
 )
-from holo.protocols import _T, _P
+from .protocols import _T, _P
 
 
 

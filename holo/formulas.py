@@ -1,15 +1,15 @@
 import operator
 
 
-from holo.__typing import (
+from .__typing import (
     NamedTuple, _PrettyPrintable, Literal,
     OrderedDict, assertListSubType, assertIsinstance,
     Union, Any, overload, LiteralString, TypeVar,
     Generic, get_args, Callable, NoReturn,
 )
-from holo.protocols import Protocol, runtime_checkable
-from holo.pointers import Pointer
-from holo.prettyFormats import (
+from .protocols import Protocol, runtime_checkable
+from .pointers import Pointer
+from .prettyFormats import (
     prettyPrint, prettyfyNamedTuple, 
     _ObjectRepr, _Pretty_CompactRules,
 )
