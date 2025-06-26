@@ -21,16 +21,22 @@ from . import Pointer, assertIsinstance
 _MP_Process: "type[multiprocess.process.BaseProcess]" = \
     assertIsinstance(type, multiprocess.Process) # type: ignore # yes it exist ?!
 
+class MP_Exception():
+    __slots__ = ("err", )
+    def __init__(self, err: Exception) -> None:
+        self.err = err
 
 ### Tasks ### 
-@basic__strRepr__
+
 class Task(Generic[_T], PrettyfyClass):
     __slots__ = ("func", "funcArgs", "funcKwargs", )
+    
     def __init__(self, func:"Callable[_P, _T]", 
                  *funcArgs:_P.args, **funcKwargs:_P.kwargs) -> None:
         self.func = func
         self.funcArgs = funcArgs
         self.funcKwargs = funcKwargs
+    
     def _toTuple(self)->"tuple[Callable[..., _T], Iterable[Any], dict[str, Any]]":
         """internal function that remove the _P typing constraints"""
         return (self.func, self.funcArgs, self.funcKwargs)
@@ -38,21 +44,14 @@ class Task(Generic[_T], PrettyfyClass):
 class TaskNoReturn(Task[None]):
     ...
 
-
 class Task_MP(Task[_T]):
     __slots__ = ("taskID", )
+    
     def __init__(self, taskID:int, func:"Callable[_P, _T]", 
                  *funcArgs:_P.args, **funcKwargs:_P.kwargs) -> None:
         super().__init__(func=func, *funcArgs, **funcKwargs)
         self.taskID: int = taskID
 
-
-
-### base Manager ### 
-
-
-class _BaseManger(Generic[_T]):
-    __slots__ = ()
 
 
 ### Multi Threading ### 
@@ -171,11 +170,6 @@ def parallelExec(tasks:"SupportsIterableSized[Task[_T]]", nbWorkers:"int|None")-
 
 
 
-
-class MP_Exception():
-    __slots__ = ("err", )
-    def __init__(self, err: Exception) -> None:
-        self.err = err
 
 class ProcessWorker(_MP_Process, Generic[_T]):
     def __init__(self, manager:"ProcessManager[_T]")->None:
