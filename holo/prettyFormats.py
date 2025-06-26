@@ -4,6 +4,7 @@ from io import StringIO, TextIOBase
 from datetime import timedelta
 import re
 from copy import deepcopy
+import warnings
 
 
 from .calc import divmod_rec
@@ -638,7 +639,7 @@ class PrettyfyClassConfig(NamedTuple):
         return self
 
     def mergeWith(self, other:"PrettyfyClassConfig")->"PrettyfyClassConfig":
-        """raw merge: (add the lists) and (apply or to the booleans)"""
+        """raw merge: (add the lists, self before other) and (apply or to the booleans)"""
         def removeDups(lst:"list[str]")->"list[str]":
             known: "set[str]" = set()
             res: "list[str]" = []
@@ -659,20 +660,18 @@ class PrettyfyClassConfig(NamedTuple):
 
 _T_PrettyfyClass = TypeVar("_T_PrettyfyClass", bound="type[PrettyfyClass]")
 
+
 class PrettyfyClass(ClassFactory):
     """will add an advanced __pretty__ methode that you can configure\n
-    setup a default __str__ or __rep__ based on __prettyAttrs__:
+    setup a default `__str__` or `__rep__` based on `__prettyAttrs_after__`:
         * str and repr will be `prettyString` with `compact=...` to oneLine it (can be overwriten)
             you can give *args / **kwargs to `prettyString`"""
     __prettyAttrs__: "ClassVar[PrettyfyClassConfig]"
     """if you don't define it => if THIS class is explicitly a ... class
         * __slots__ -> it will add all the new atributs of THIS class and show the __dict__
         * __dict__ -> will add all content of the __dict__ even the ones of previous classes"""
-    __with_attrs__: "ClassVar[bool]" = False
-    """to tell wether the class is being created with attrs\n
-    this will propagate to subclasses until a new rule is given\n
-    False will configure the class at his creation
-    True will wait until __attrs_attrs__ is owned by the class"""
+    __prettyAttrs_after__: "ClassVar[PrettyfyClassConfig]"
+    """the config that will be used by PrettyfyClass (created by PrettyfyClass, will be overwriten at setup)"""
     __overwrite_strRepr__: "ClassVar[bool]" = False
     """to tell wether the class will force using the __str/repr__ of PrettyfyClass\n
     this will propagate to subclasses until a new rule is given"""
@@ -687,14 +686,7 @@ class PrettyfyClass(ClassFactory):
     @staticmethod
     def _ClassFactory__initSubclass(
             subClass:"type[PrettyfyClass]", **kwargs) -> None:
-        #print(f"\n* start on {subClass} -> {getattr(subClass, '__prettyAttrs__', None)} *")
-        if subClass.__with_attrs__ is True:
-            # wait until attrs has been applied
-            #print("* 0.1.1")
-            if (_ownAttr(subClass, "__attrs_attrs__") is False):
-                #print("* 0.2")
-                return # => wait until attrs has been applied
-            #print("* 0.1.2")
+        print(f"\n* start on {subClass} -> {getattr(subClass, '__prettyAttrs_after__', None)} *")
         
         if _ownAttr(subClass, "__pretty__"):
             raise AttributeError(
@@ -706,49 +698,54 @@ class PrettyfyClass(ClassFactory):
             subClass.__repr__ = PrettyfyClass.__repr__
         
         if _ownAttr(subClass, "__prettyAttrs__") is False:
-            # => (__prettyAttrs__ not owned)
-            if hasattr(subClass, "__prettyAttrs__") is False:
+            # => (__prettyAttrs__ not owned) => no config provided on this class
+            bases_config = PrettyfyClass.__get_bases_cfg(subClass)
+            if bases_config is None:
                 # => no bases have it defined => all (default behaviour)
-                subClass.__prettyAttrs__ = PrettyfyClassConfig(
+                subClass.__prettyAttrs_after__ = PrettyfyClassConfig(
                     showAttrs=PrettyfyClass.__collect_all_new_of_slots(subClass),
                     hideAttrs=[], showDict=True, addNewSlots=True, mergeWithParent=True)
-                #print(f"* 1.1 -> final: {subClass.__prettyAttrs__}")
+                print(f"* 1.1 -> final: {subClass.__prettyAttrs_after__}")
                 return # finished here
             else: # => it is alredy define on a base
-                # => merge with the base
-                #print(f"* 1.2.1 -> base: {subClass.__prettyAttrs__}")
-                newConfig = subClass.__prettyAttrs__.copy() # copy the one from the base
+                # => merge with the bases
+                print(f"* 1.2.1 -> base: {bases_config}")
+                newConfig = bases_config.copy() # copy the one from the bases
                 if newConfig.addNewSlots is True:
                     newConfig.addAttrs(
                         attrsToShow=PrettyfyClass.__collect_all_new_of_slots(subClass),
                         attrsToHide=[], inplace=True)
-                subClass.__prettyAttrs__ = newConfig
-                #print(f"* 1.2.2 -> final: {subClass.__prettyAttrs__}")
+                subClass.__prettyAttrs_after__ = newConfig
+                print(f"* 1.2.2 -> final: {subClass.__prettyAttrs_after__}")
                 return # finished here
         else: 
             # => (__prettyAttrs__ is owned) => defined by the user
-            #print(f"* 1.3.1 -> before: {subClass.__prettyAttrs__}")
+            print(f"* 1.3.1 -> before: {subClass.__prettyAttrs__}")
             if subClass.__prettyAttrs__.mergeWithParent is True:
                 # => find the nearest one in a base
-                merged_base_cfg = PrettyfyClass.__get_base_cfg(subClass)
-                if merged_base_cfg is not None:
-                    subClass.__prettyAttrs__ = merged_base_cfg.mergeWith(
-                        subClass.__prettyAttrs__)
-                if subClass.__prettyAttrs__.addNewSlots is True:
-                    subClass.__prettyAttrs__.addAttrs(
+                bases_cfg = PrettyfyClass.__get_bases_cfg(subClass)
+                # set the __prettyAttrs_after__ config
+                if bases_cfg is not None:
+                    # => it has bases
+                    subClass.__prettyAttrs_after__ = PrettyfyClassConfig.mergeWith(
+                        bases_cfg, subClass.__prettyAttrs__)
+                else: # => don't have bases
+                    subClass.__prettyAttrs_after__ = subClass.__prettyAttrs__.copy()
+                
+                if subClass.__prettyAttrs_after__.addNewSlots is True:
+                    subClass.__prettyAttrs_after__.addAttrs(
                         attrsToShow=PrettyfyClass.__collect_all_new_of_slots(subClass),
                         attrsToHide=[], inplace=True)
-            #print(f"* 1.3.2 -> final: {subClass.__prettyAttrs__}")
+            print(f"* 1.3.2 -> final: {subClass.__prettyAttrs_after__}")
             return  # finished here
-    
-    
+        raise RuntimeError(f"code souldn't be reached")
     
     @staticmethod
-    def __get_base_cfg(subClass:"type[PrettyfyClass]")->"PrettyfyClassConfig|None":
+    def __get_bases_cfg(subClass:"type[PrettyfyClass]")->"PrettyfyClassConfig|None":
         """return a copy of the cofig from the base (no merge betwin is done)"""
         merged_cfg: "PrettyfyClassConfig|None" = None
         for base in subClass.__bases__:
-            base_cfg = getattr(base, "__prettyAttrs__", None)
+            base_cfg = getattr(base, "__prettyAttrs_after__", None)
             if isinstance(base_cfg, PrettyfyClassConfig):
                 if merged_cfg is None:
                     merged_cfg = base_cfg
@@ -767,28 +764,11 @@ class PrettyfyClass(ClassFactory):
                     if name != "__weakref__"]
         else: # => __dict__ class 
             return []
-
-
-    @staticmethod
-    def wrapClass(use_prettyAttrs:"PrettyfyClassConfig|None"=None):
-        """small workaround for decorated class that whould have a multiple init_subclass\n
-        the prettyAttrs config will be given to the __init_subclass__ (if None use the default cfg)\n
-        place it before the @decorator that edit the class\n
-        when using the wrapper, dont use heritage"""
-        def apply(cls:"_T_PrettyfyClass")->"_T_PrettyfyClass":
-            if use_prettyAttrs is None:
-                # => reset the __prettyAttrs__
-                del cls.__prettyAttrs__ # because the subclass will own it
-            else: # => a custom __prettyAttrs__
-                cls.__prettyAttrs__ = use_prettyAttrs
-            PrettyfyClass._ClassFactory__initSubclass(cls)
-            return cls
-        return apply
     
     def __pretty__(self, *_, **__) -> _ObjectRepr:
-        if _ownAttr(self.__class__, "__prettyAttrs__") is False:
+        if _ownAttr(self.__class__, "__prettyAttrs_after__") is False:
             raise AttributeError(f"the class: {self.__class__} migth not have been configured")
-        cfg = self.__prettyAttrs__
+        cfg = self.__prettyAttrs_after__
         attrsToValue: "dict[str, Any]" = {}
         for attrName in cfg.showAttrs: 
             attrsToValue[attrName] = getattr(self, attrName)
