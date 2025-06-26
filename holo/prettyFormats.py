@@ -686,7 +686,7 @@ class PrettyfyClass(ClassFactory):
     @staticmethod
     def _ClassFactory__initSubclass(
             subClass:"type[PrettyfyClass]", **kwargs) -> None:
-        print(f"\n* start on {subClass} -> {getattr(subClass, '__prettyAttrs_after__', None)} *")
+        #print(f"\n* start on {subClass} -> {getattr(subClass, '__prettyAttrs_after__', None)} *")
         
         if _ownAttr(subClass, "__pretty__"):
             raise AttributeError(
@@ -705,22 +705,22 @@ class PrettyfyClass(ClassFactory):
                 subClass.__prettyAttrs_after__ = PrettyfyClassConfig(
                     showAttrs=PrettyfyClass.__collect_all_new_of_slots(subClass),
                     hideAttrs=[], showDict=True, addNewSlots=True, mergeWithParent=True)
-                print(f"* 1.1 -> final: {subClass.__prettyAttrs_after__}")
+                #print(f"* 1.1 -> final: {subClass.__prettyAttrs_after__}")
                 return # finished here
             else: # => it is alredy define on a base
                 # => merge with the bases
-                print(f"* 1.2.1 -> base: {bases_config}")
+                #print(f"* 1.2.1 -> base: {bases_config}")
                 newConfig = bases_config.copy() # copy the one from the bases
                 if newConfig.addNewSlots is True:
                     newConfig.addAttrs(
                         attrsToShow=PrettyfyClass.__collect_all_new_of_slots(subClass),
                         attrsToHide=[], inplace=True)
                 subClass.__prettyAttrs_after__ = newConfig
-                print(f"* 1.2.2 -> final: {subClass.__prettyAttrs_after__}")
+                #print(f"* 1.2.2 -> final: {subClass.__prettyAttrs_after__}")
                 return # finished here
         else: 
             # => (__prettyAttrs__ is owned) => defined by the user
-            print(f"* 1.3.1 -> before: {subClass.__prettyAttrs__}")
+            #print(f"* 1.3.1 -> before: {subClass.__prettyAttrs__}")
             if subClass.__prettyAttrs__.mergeWithParent is True:
                 # => find the nearest one in a base
                 bases_cfg = PrettyfyClass.__get_bases_cfg(subClass)
@@ -736,7 +736,7 @@ class PrettyfyClass(ClassFactory):
                     subClass.__prettyAttrs_after__.addAttrs(
                         attrsToShow=PrettyfyClass.__collect_all_new_of_slots(subClass),
                         attrsToHide=[], inplace=True)
-            print(f"* 1.3.2 -> final: {subClass.__prettyAttrs_after__}")
+            #print(f"* 1.3.2 -> final: {subClass.__prettyAttrs_after__}")
             return  # finished here
         raise RuntimeError(f"code souldn't be reached")
     
