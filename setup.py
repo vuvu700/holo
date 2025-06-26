@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='holo',
-    version='0.1.0',
+    version='0.1.1',
     author='Ludovic Andrieu',
     author_email='vuvu700.vuvu@gmail.com',
     description='A short description of your package',
