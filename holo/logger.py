@@ -69,7 +69,7 @@ class Logger():
         aux = lambda var, cond: None if cond else var
         self.file:"TextIO|None" = None # to avoid more errors in __del__
         self.file = open(filePath, mode=fileOpenMode, encoding=encoding, 
-                         buffering=(-1 if useBuffer is True else 0))
+                         buffering=(-1 if useBuffer is True else 1))
         self.file.seek(0, 2) # got to the end of the log file
         self.logStdout:"_LoggerWriter" = _LoggerWriter(
             self.file, aux(sys.stdout, _noRePrint) , "INFO", newLogLineAfter)
@@ -122,7 +122,7 @@ class LoggerContext():
             if isinstance(file, tuple):
                 (file, encoding) = file
             self.file = open(file, mode=fileOpenMode, encoding=encoding,
-                             buffering=(-1 if useBuffer is True else 0))
+                             buffering=(-1 if useBuffer is True else 1))
         self.logStdout:"_LoggerWriter|None" = None
         self.logStderr:"_LoggerWriter|None" = None
         
