@@ -65,10 +65,11 @@ class Logger():
     def __init__(self,
             filePath:"StrPath", encoding:"str|None"=None, _noRePrint:"bool"=False, 
             newLogLineAfter:"timedelta"=timedelta(milliseconds=1), 
-            fileOpenMode:"Literal['a', 'w']"='a')->None:
+            fileOpenMode:"Literal['a', 'w']"='a', useBuffer:bool=True)->None:
         aux = lambda var, cond: None if cond else var
         self.file:"TextIO|None" = None # to avoid more errors in __del__
-        self.file = open(filePath, mode=fileOpenMode, encoding=encoding)
+        self.file = open(filePath, mode=fileOpenMode, encoding=encoding, 
+                         buffering=(-1 if useBuffer is True else 0))
         self.file.seek(0, 2) # got to the end of the log file
         self.logStdout:"_LoggerWriter" = _LoggerWriter(
             self.file, aux(sys.stdout, _noRePrint) , "INFO", newLogLineAfter)
@@ -101,17 +102,17 @@ class Logger():
 _Encoding = str
 class LoggerContext():
     @overload # open file signature
-    def __init__(self, file:"StrPath|tuple[StrPath, _Encoding]", 
+    def __init__(self, file:"StrPath|tuple[StrPath, _Encoding]", *,
                  newLogLineAfter:"timedelta"=timedelta(milliseconds=1), 
-                 fileOpenMode:"Literal['a', 'w']"='a')->None:
+                 fileOpenMode:"Literal['a', 'w']"='a', useBuffer:bool=True)->None:
         ...
     @overload # use file signature
-    def __init__(self, file:"TextIOWrapper", 
-                 newLogLineAfter:"timedelta"=timedelta(milliseconds=1))->None:
+    def __init__(self, file:"TextIOWrapper", *,
+                 newLogLineAfter:"timedelta"=timedelta(milliseconds=1), useBuffer:bool=True)->None:
         ...
     def __init__(self, file:"StrPath|tuple[StrPath, _Encoding]|TextIOWrapper", 
-                 newLogLineAfter:"timedelta"=timedelta(milliseconds=1), 
-                 fileOpenMode:"Literal['a', 'w']"='a')->None:
+                 *, newLogLineAfter:"timedelta"=timedelta(milliseconds=1),
+                 fileOpenMode:"Literal['a', 'w']"='a', useBuffer:bool=True)->None:
         self.newLogLineAfter: timedelta = newLogLineAfter
         self.file:TextIO
         if isinstance(file, TextIOWrapper):
@@ -120,7 +121,8 @@ class LoggerContext():
             encoding:"str|None" = "utf-8" # don't use None to be consistant with the std...
             if isinstance(file, tuple):
                 (file, encoding) = file
-            self.file = open(file, mode=fileOpenMode, encoding=encoding)
+            self.file = open(file, mode=fileOpenMode, encoding=encoding,
+                             buffering=(-1 if useBuffer is True else 0))
         self.logStdout:"_LoggerWriter|None" = None
         self.logStderr:"_LoggerWriter|None" = None
         
