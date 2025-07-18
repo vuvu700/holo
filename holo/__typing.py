@@ -23,7 +23,7 @@ if sys.version_info < (3, 12):
         runtime_checkable, Concatenate,
         TypedDict, NotRequired, get_args,
         override, get_origin, Required,
-        TypeAliasType, Never, )
+        TypeAliasType, Never, final, Final, )
 else: from typing import (
         Literal, Self, TypeVarTuple,
         Unpack, TypeGuard, LiteralString,
@@ -31,7 +31,7 @@ else: from typing import (
         runtime_checkable, Concatenate,
         TypedDict, NotRequired, get_args,
         override, get_origin, Required,
-        TypeAliasType, Never, )
+        TypeAliasType, Never, final, Final, )
 
 
 if TYPE_CHECKING:
