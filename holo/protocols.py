@@ -111,8 +111,11 @@ class SupportsDivModRec(Protocol[_T_contra, _T_co]):
         self, __other: _T_contra
         ) -> "tuple[_T_co, SupportsDivModRec[_T_contra, _T_co]]": ...
 
+class SupportsMul(Protocol[_T_contra, _T_co]):
+    def __mul__(self, __x: _T_contra) -> _T_co: ...
 
-
+class SupportsMulRec(Protocol):
+    def __mul__(self, __x: Self) -> Self: ...
 
 # This protocol is generic over the iterator type, while Iterable is
 # generic over the type that is iterated over.

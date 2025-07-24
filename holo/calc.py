@@ -4,9 +4,9 @@ from decimal import Decimal, getcontext as decimal_getContext
 from .__typing import Iterable, MutableSequence, TypeVar
 from .protocols import (
     _T, _T_co, _T_contra, SupportsDivModRec,
-    SupportsLenAndGetItem,
-)
+    SupportsLenAndGetItem, SupportsMulRec, )
 
+_T_prod = TypeVar("_T_prod", bound="SupportsMulRec")
 _T_MutableSequence = TypeVar("_T_MutableSequence", bound=MutableSequence)
 
 decimal_getContext().prec = 28
@@ -152,7 +152,7 @@ def gaussCumulativeRepartition(x:float, omega:float=1.0, mu:float=0.0)->float:
 
 
 def invertPermutation(permut:"list[int]")->"list[int]":
-    ... # TODO
+    raise NotImplementedError
 
 def appliePermutation(
         elements:"SupportsLenAndGetItem[_T]", permut:"list[int]")->"list[_T]":
@@ -160,5 +160,13 @@ def appliePermutation(
 
 def appliePermutationInplace(
         elements:"_T_MutableSequence", permut:"list[int]")->"_T_MutableSequence":
-    ... # TODO
+    raise NotImplementedError
     return elements
+
+
+def product(elts:Iterable[_T_prod])->_T_prod:
+    elts_iter = iter(elts)
+    result: "_T_prod" = next(elts_iter)
+    for elt in elts_iter:
+        result *= elt
+    return result
