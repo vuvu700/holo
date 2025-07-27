@@ -7,6 +7,7 @@ from .__typing import (
     Generic, TypeVar, ContextManager,
     LiteralString, Self, TypeGuard, Literal,
 )
+from .prettyFormats import prettyTime
 from .protocols import _T, _P
 
 
@@ -264,9 +265,11 @@ class SimpleProfiler(ContextManager, Generic[_T_Categorie]):
         if (self.__setMesureFunc is not None) and (self.name is not None): # => set the mesure
             self.__setMesureFunc(self.name, self.StopTime - self.startTime)
 
-    def perttyStr(self, prettyTimeFunc:"Callable[[float], str]")->str:
+    def perttyStr(self, prettyTimeFunc:"Callable[[float], str]|None"=None)->str:
         if (self.startTime is None) or (self.StopTime is None):
             return f"SimpleProfiler({self.name}, noTime)"
+        if prettyTimeFunc is None: 
+            prettyTimeFunc = prettyTime
         return f"SimpleProfiler({self.name}, {prettyTimeFunc(self.StopTime - self.startTime)})"
 
     def __str__(self)->str:
@@ -511,3 +514,124 @@ def convert_datetime_to_perfCounter(t:datetime)->float:
 def convert_perfCounter_to_datetime(t:float)->datetime:
     return __referenceDatetime + timedelta(seconds=(t - __referencePerfCounter))
 
+class RemainingTime_mean():
+    """util class to Estimate the time remaining for a task\\
+    use the mean time to estimate"""
+    
+    def __init__(self, finalAmount:"int|float", *, start:bool)->None:
+        self.finalAmount: float = finalAmount
+        self.currentAmount: float = 0
+        self.startTime: "datetime|None" = None
+        self.endTime: "datetime|None" = None
+        if start is True:
+            self.start()
+    
+    @property
+    def progress(self)->float:
+        """the current progress (from 0. to 1., truncated)"""
+        return max(0., min(1., self.currentAmount / self.finalAmount))
+    
+    
+    ### total time
+    def estimatedTotalTimeDelta(self)->"timedelta|None":
+        """return the estimated total time of the task, in seconds, based on `self.progress`, None if no progress"""
+        assert self.startTime is not None, f"it wasn't started"
+        sinceStart = (datetime.now() - self.startTime)
+        progress = self.progress
+        if progress == 0.0:
+            return None # couldn't estimate
+        # totalTime = sinceStart / self.progress 
+        return sinceStart * (1 / self.progress)
+    
+    def estimatedTotalTime(self)->float:
+        """return the estimated total time of the task, in seconds, based on `self.progress`, `+inf` if no progress"""
+        totTime = self.estimatedTotalTimeDelta()
+        return (float("+inf") if totTime is None else totTime.total_seconds())
+    
+    def estimatedPrettyTotalTime(self)->str:
+        """return the estimated total time of the task, prettyPrinted, based on `self.progress`, `+inf` if no progress"""
+        return prettyTime(self.estimatedTotalTime())
+    
+    
+    ### remaining time
+    def remainingTimeDelta(self)->"timedelta|None":
+        """return the remaining time, in seconds, based on `self.progress`, None if no progress"""
+        assert self.startTime is not None, f"it wasn't started"
+        sinceStart = (datetime.now() - self.startTime)
+        progress = self.progress
+        if progress == 0.0:
+            return None # couldn't estimate
+        # totalTime = sinceStart / self.progress 
+        # remainingTime = totalTime - sinceStart
+        return sinceStart * (1 / self.progress - 1)
+    
+    def remainingTime(self)->float:
+        """return the remaining time, in seconds, based on `self.progress`, `+inf` if no progress"""
+        remTime = self.remainingTimeDelta()
+        return (float("+inf") if remTime is None else remTime.total_seconds())
+    
+    def remainingPrettyTime(self)->str:
+        """return the remaining time, prettyPrinted, based on `self.progress`, `+inf` if no progress"""
+        return prettyTime(self.remainingTime())
+    
+    
+    ### finish time
+    def estimatedFinishDatetime(self)->"datetime|None":
+        """return the estimated datetime when it is expected to finish, based on `self.progress`, None if no progress"""
+        assert self.startTime is not None, f"it wasn't started"
+        remTime = self.remainingTimeDelta()
+        if remTime is None: 
+            return None
+        return self.startTime + remTime
+    
+    def estimatedFinishTime(self)->float:
+        """return the estimated posix timestamp when it is expected to finish, in seconds, based on `self.progress`, `+inf` if no progress"""
+        finish = self.estimatedFinishDatetime()
+        return (float("+inf") if finish is None else finish.timestamp())
+    
+    def estimatedPrettyFinishTime(self)->str:
+        """return the remaining time, prettyPrinted, based on `self.progress`, `+inf` if no progress"""
+        finish = self.estimatedFinishDatetime()
+        return ("noProgress" if finish is None else finish.ctime())
+    
+    
+    ### actions
+    def restart(self, *, start:bool)->None:
+        """reset everything to empty (amount, startTime, etc)"""
+        self.__init__(finalAmount=self.finalAmount, start=start)
+        
+    def start(self)->None:
+        """this will start counting the time from now"""
+        assert self.startTime is None, f"it was alredy started, you can restart it if needed"
+        self.startTime = datetime.now()
+    
+    def end(self)->None:
+        """this will end to now (this keep the currentAmount unchanged)"""
+        assert self.startTime is not None, f"it wasn't started"
+        assert self.endTime is None, f"it was alredy stoped, you can restart it if needed"
+        self.endTime = datetime.now()
+    
+    def isFinished(self)->bool:
+        """return whether it was stoped"""
+        return (self.endTime is not None)
+    
+    
+    def __stopIfNeeded(self)->None:
+        assert self.startTime is not None, f"it wasn't started"
+        assert self.endTime is None, f"it was alredy stoped, you can restart it if needed"
+        if self.currentAmount >= self.finalAmount:
+            self.end()
+        
+    def addAmount(self, toAdd:"float|int")->bool:
+        """add the amount to the current amount, return whether it finished"""
+        self.currentAmount += toAdd
+        self.__stopIfNeeded()
+        return self.isFinished()
+    
+    def setAmount(self, newAmount:"float|int")->bool:
+        """set the current amount to the value, return whether it finished"""
+        self.currentAmount = newAmount
+        self.__stopIfNeeded()
+        return self.isFinished()
+    
+    
