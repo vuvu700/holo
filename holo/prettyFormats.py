@@ -688,10 +688,10 @@ class PrettyfyClass(ClassFactory):
             subClass:"type[PrettyfyClass]", **kwargs) -> None:
         #print(f"\n* start on {subClass} -> {getattr(subClass, '__prettyAttrs_after__', None)} *")
         
-        if _ownAttr(subClass, "__pretty__"):
-            raise AttributeError(
-                f"the sub class: {subClass} (or one if its base) "
-                "must not redefine a __pretty__ methode, it is done by the factory")
+        #if _ownAttr(subClass, "__pretty__"):
+        #    raise AttributeError(
+        #        f"the sub class: {subClass} (or one if its base) "
+        #        "must not redefine a __pretty__ methode, it is done by the factory")
         
         if subClass.__overwrite_strRepr__ is True:
             subClass.__str__ = PrettyfyClass.__str__
