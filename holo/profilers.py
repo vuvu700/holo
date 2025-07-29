@@ -533,66 +533,68 @@ class RemainingTime_mean():
     
     
     ### total time
-    def estimatedTotalTimeDelta(self)->"timedelta|None":
-        """return the estimated total time of the task, in seconds, based on `self.progress`, None if no progress"""
+    def estimatedTotalTimeDelta(self, noProgress:"_T"=None)->"timedelta|_T":
+        """return the estimated total time of the task, in seconds, based on `self.progress`"""
         assert self.startTime is not None, f"it wasn't started"
         sinceStart = (datetime.now() - self.startTime)
         progress = self.progress
         if progress == 0.0:
-            return None # couldn't estimate
+            return noProgress # couldn't estimate
         # totalTime = sinceStart / self.progress 
         return sinceStart * (1 / self.progress)
     
-    def estimatedTotalTime(self)->float:
-        """return the estimated total time of the task, in seconds, based on `self.progress`, `+inf` if no progress"""
-        totTime = self.estimatedTotalTimeDelta()
-        return (float("+inf") if totTime is None else totTime.total_seconds())
+    def estimatedTotalTime(self, noProgress:"_T"=None)->"float|_T":
+        """return the estimated total time of the task, in seconds, based on `self.progress`"""
+        totTime = self.estimatedTotalTimeDelta(noProgress=None)
+        return (noProgress if totTime is None else totTime.total_seconds())
     
-    def estimatedPrettyTotalTime(self)->str:
-        """return the estimated total time of the task, prettyPrinted, based on `self.progress`, `+inf` if no progress"""
-        return prettyTime(self.estimatedTotalTime())
+    def estimatedPrettyTotalTime(self, noProgress:"_T"=None)->"str|_T":
+        """return the estimated total time of the task, prettyPrinted, based on `self.progress`"""
+        estValue = self.estimatedTotalTime(noProgress=None)
+        return (noProgress if estValue is None else prettyTime(estValue))
     
     
     ### remaining time
-    def remainingTimeDelta(self)->"timedelta|None":
-        """return the remaining time, in seconds, based on `self.progress`, None if no progress"""
+    def remainingTimeDelta(self, noProgress:"_T"=None)->"timedelta|_T":
+        """return the remaining time, in seconds, based on `self.progress`"""
         assert self.startTime is not None, f"it wasn't started"
         sinceStart = (datetime.now() - self.startTime)
         progress = self.progress
         if progress == 0.0:
-            return None # couldn't estimate
+            return noProgress # couldn't estimate
         # totalTime = sinceStart / self.progress 
         # remainingTime = totalTime - sinceStart
         return sinceStart * (1 / self.progress - 1)
     
-    def remainingTime(self)->float:
-        """return the remaining time, in seconds, based on `self.progress`, `+inf` if no progress"""
-        remTime = self.remainingTimeDelta()
-        return (float("+inf") if remTime is None else remTime.total_seconds())
+    def remainingTime(self, noProgress:"_T"=None)->"float|_T":
+        """return the remaining time, in seconds, based on `self.progress`"""
+        remTime = self.remainingTimeDelta(noProgress=None)
+        return (noProgress if remTime is None else remTime.total_seconds())
     
-    def remainingPrettyTime(self)->str:
-        """return the remaining time, prettyPrinted, based on `self.progress`, `+inf` if no progress"""
-        return prettyTime(self.remainingTime())
+    def remainingPrettyTime(self, noProgress:"_T"=None)->"str|_T":
+        """return the remaining time, prettyPrinted, based on `self.progress`"""
+        remTime = self.remainingTime(noProgress=None)
+        return (noProgress if remTime is None else prettyTime(remTime))
     
     
     ### finish time
-    def estimatedFinishDatetime(self)->"datetime|None":
-        """return the estimated datetime when it is expected to finish, based on `self.progress`, None if no progress"""
+    def estimatedFinishDatetime(self, noProgress:"_T"=None)->"datetime|_T":
+        """return the estimated datetime when it is expected to finish, based on `self.progress`"""
         assert self.startTime is not None, f"it wasn't started"
-        remTime = self.remainingTimeDelta()
+        remTime = self.remainingTimeDelta(noProgress=None)
         if remTime is None: 
-            return None
+            return noProgress
         return self.startTime + remTime
     
-    def estimatedFinishTime(self)->float:
-        """return the estimated posix timestamp when it is expected to finish, in seconds, based on `self.progress`, `+inf` if no progress"""
-        finish = self.estimatedFinishDatetime()
-        return (float("+inf") if finish is None else finish.timestamp())
+    def estimatedFinishTime(self, noProgress:"_T"=None)->"float|_T":
+        """return the estimated posix timestamp when it is expected to finish, in seconds, based on `self.progress`"""
+        finish = self.estimatedFinishDatetime(noProgress=None)
+        return (noProgress if finish is None else finish.timestamp())
     
-    def estimatedPrettyFinishTime(self)->str:
-        """return the remaining time, prettyPrinted, based on `self.progress`, `+inf` if no progress"""
-        finish = self.estimatedFinishDatetime()
-        return ("noProgress" if finish is None else finish.ctime())
+    def estimatedPrettyFinishTime(self, noProgress:"_T"=None)->"str|_T":
+        """return the remaining time, prettyPrinted, based on `self.progress`"""
+        finish = self.estimatedFinishDatetime(noProgress=None)
+        return (noProgress if finish is None else finish.ctime())
     
     
     ### actions
