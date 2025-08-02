@@ -315,7 +315,11 @@ def __prettyPrint_internal(
     `printClassName` whether it will print the class before printing the object (True->alway, None->default, False->never)\n
     `prettyfyFromObj` is setted when called after prettyfying an object to the object from it, otherwise is None\
         since None can't have a __pretty__ methode it is safe to use this value\n"""
-
+    
+    if (type(obj) == set) and (len(obj) == 0):
+        # because empty sets are "set()" not "{}"
+        obj = _ObjectRepr(className="set", args=(), kwargs={})
+    
     ## look for a specific format first
     if (specificFormats is not None):
         formatFunc = specificFormats.get(type(obj), None) # type: ignore normal that the _PrettyPrintable dont match _T
