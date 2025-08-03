@@ -4,7 +4,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from io import TextIOWrapper
 
-from .__typing import Union, TextIO, Literal, overload
+from .__typing import Union, TextIO, Literal, overload, get_args
 from .files import StrPath
 
 FULL_TIME_FORMAT = "%d/%m/%Y %H:%M:%S"
@@ -142,6 +142,40 @@ class LoggerContext():
         self.logStdout = None
         sys.stderr = self.logStderr.copyFile
         self.logStderr = None
+        
+    def __del__(self):
+        if self.file.closed is False:
+            self.file.close()
+
+    
+class RedirectOutputsContext():
+    """to redirect stdout to a certain file"""
+    
+    __NOT_SETTED = object()
+    
+    def __init__(self, file:"StrPath|tuple[StrPath, _Encoding]|TextIOWrapper", 
+                 *, fileOpenMode:"Literal['a', 'w']"='a', 
+                 useBuffer:bool=True)->None:
+        self.file:TextIO
+        if isinstance(file, TextIOWrapper):
+            self.file = file
+        else: # => the path of the file to open is given 
+            encoding:"str|None" = "utf-8" # don't use None to be consistant with the std...
+            if isinstance(file, tuple):
+                (file, encoding) = file
+            self.file = open(file, mode=fileOpenMode, encoding=encoding,
+                             buffering=(-1 if useBuffer is True else 1))
+        self.stdoutBefore: "TextIO|object" = self.__NOT_SETTED
+    
+    def __enter__(self)->None:
+        self.file.seek(0, 2) # got to the end of the log file
+        self.stdoutBefore = sys.stdout
+        sys.stdout = self.file
+    
+    def __exit__(self, *_, **__)->None:
+        assert self.stdoutBefore is not self.__NOT_SETTED, \
+            "can't exit without entering first"
+        sys.stdout = self.stdoutBefore
         
     def __del__(self):
         if self.file.closed is False:
