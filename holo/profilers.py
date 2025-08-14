@@ -6,6 +6,7 @@ from .__typing import (
     Iterable, Callable, Any, Iterable,
     Generic, TypeVar, ContextManager,
     LiteralString, Self, TypeGuard, Literal,
+    override, assertIsinstance, 
 )
 from .prettyFormats import prettyTime
 from .protocols import _T, _P
@@ -514,13 +515,13 @@ def convert_datetime_to_perfCounter(t:datetime)->float:
 def convert_perfCounter_to_datetime(t:float)->datetime:
     return __referenceDatetime + timedelta(seconds=(t - __referencePerfCounter))
 
-class RemainingTime_mean():
-    """util class to Estimate the time remaining for a task\\
-    use the mean time to estimate"""
+class _RemainingTime_Base():
+    """util class to estimate the time remaining for a task"""
+    EPSILON = 1.0e-6
     
     def __init__(self, finalAmount:"int|float", *, start:bool)->None:
         self.finalAmount: float = finalAmount
-        self.currentAmount: float = 0
+        self.__currentAmount = 0
         self.startTime: "datetime|None" = None
         self.endTime: "datetime|None" = None
         if start is True:
@@ -531,17 +532,18 @@ class RemainingTime_mean():
         """the current progress (from 0. to 1., truncated)"""
         return max(0., min(1., self.currentAmount / self.finalAmount))
     
+    def getCurrentAmountPerSec(self)->"float|None":
+        raise NotImplementedError
     
-    ### total time
+    ### total time  
     def estimatedTotalTimeDelta(self, noProgress:"_T"=None)->"timedelta|_T":
         """return the estimated total time of the task, in seconds, based on `self.progress`"""
         assert self.startTime is not None, f"it wasn't started"
+        remTime = self.remainingTimeDelta(noProgress=None)
+        if remTime is None:
+            return noProgress
         sinceStart = (datetime.now() - self.startTime)
-        progress = self.progress
-        if progress == 0.0:
-            return noProgress # couldn't estimate
-        # totalTime = sinceStart / self.progress 
-        return sinceStart * (1 / self.progress)
+        return sinceStart + remTime
     
     def estimatedTotalTime(self, noProgress:"_T"=None)->"float|_T":
         """return the estimated total time of the task, in seconds, based on `self.progress`"""
@@ -558,13 +560,11 @@ class RemainingTime_mean():
     def remainingTimeDelta(self, noProgress:"_T"=None)->"timedelta|_T":
         """return the remaining time, in seconds, based on `self.progress`"""
         assert self.startTime is not None, f"it wasn't started"
-        sinceStart = (datetime.now() - self.startTime)
-        progress = self.progress
-        if progress == 0.0:
+        amountPerSec = self.getCurrentAmountPerSec()
+        if amountPerSec is None:
             return noProgress # couldn't estimate
-        # totalTime = sinceStart / self.progress 
-        # remainingTime = totalTime - sinceStart
-        return sinceStart * (1 / self.progress - 1)
+        remainingAmount = (self.finalAmount - self.currentAmount)
+        return timedelta(seconds=(remainingAmount / amountPerSec))
     
     def remainingTime(self, noProgress:"_T"=None)->"float|_T":
         """return the remaining time, in seconds, based on `self.progress`"""
@@ -580,11 +580,10 @@ class RemainingTime_mean():
     ### finish time
     def estimatedFinishDatetime(self, noProgress:"_T"=None)->"datetime|_T":
         """return the estimated datetime when it is expected to finish, based on `self.progress`"""
-        assert self.startTime is not None, f"it wasn't started"
         remTime = self.remainingTimeDelta(noProgress=None)
-        if remTime is None: 
+        if remTime is None:
             return noProgress
-        return self.startTime + remTime
+        return datetime.now() + remTime
     
     def estimatedFinishTime(self, noProgress:"_T"=None)->"float|_T":
         """return the estimated posix timestamp when it is expected to finish, in seconds, based on `self.progress`"""
@@ -623,7 +622,7 @@ class RemainingTime_mean():
         assert self.endTime is None, f"it was alredy stoped, you can restart it if needed"
         if self.currentAmount >= self.finalAmount:
             self.end()
-        
+            
     def addAmount(self, toAdd:"float|int")->bool:
         """add the amount to the current amount, return whether it finished"""
         self.currentAmount += toAdd
@@ -632,8 +631,74 @@ class RemainingTime_mean():
     
     def setAmount(self, newAmount:"float|int")->bool:
         """set the current amount to the value, return whether it finished"""
-        self.currentAmount = newAmount
-        self.__stopIfNeeded()
-        return self.isFinished()
+        delta = (newAmount - self.currentAmount)
+        assert delta >= 0.0, \
+            f"can't set a new amount({newAmount}) that is below the current amount({self.currentAmount})"
+        return self.addAmount(delta)
+    
+    @property
+    def currentAmount(self)->float:
+        return self.__currentAmount
+    
+    def _internalSetCurrentAmount(self, value:float)->None:
+        if value < 0.0: raise ValueError(f"invalide value for currentAmount: {value} < 0.0")
+        if value > self.finalAmount + self.EPSILON: 
+            raise ValueError(f"invalide value for currentAmount: {value} > finalAmount({self.finalAmount}) + epsilon")
+        self.__currentAmount: float = value
+    
+    @currentAmount.setter
+    def currentAmount(self, value:float)->float:
+        self._internalSetCurrentAmount(value=value)
+        return value
+        
+
+class RemainingTime_mean(_RemainingTime_Base):
+    
+    @override
+    def getCurrentAmountPerSec(self)->"float|None":
+        if self.startTime is None: 
+            return None
+        if self.currentAmount == 0.0:
+            return None
+        return self.currentAmount / ((datetime.now() - self.startTime).total_seconds() + self.EPSILON)
     
     
+    
+class RemainingTime_ema(_RemainingTime_Base):
+    
+    def __init__(self, finalAmount:"int|float", *, start:bool, emaCoef:float=0.75)->None:
+        assert 0.0 < emaCoef <= 1.0, f"invalide value for emaCoef: {emaCoef}"
+        self.emaCoef: float = emaCoef
+        self._tLastAdd: "datetime|None" = None
+        """the moment when the last add (or start) was done"""
+        self.__currentSpeed: "float|None" = None
+        """the current value of amount/sec (smoothed by the ema)"""
+        super().__init__(finalAmount, start=start)
+
+    def getCurrentAmountPerSec(self)->"float|None":
+        return self.__currentSpeed
+    
+    @override
+    def restart(self, *, start:bool)->None:
+        self.__init__(finalAmount=self.finalAmount, start=start, emaCoef=self.emaCoef)
+    
+    @override
+    def start(self)->None:
+        super().start()
+        self._tLastAdd = assertIsinstance(datetime, self.startTime)
+    
+    @override
+    def _internalSetCurrentAmount(self, value:float)->None:
+        previous: float = self.currentAmount
+        super()._internalSetCurrentAmount(value)
+        # update the ema
+        now = datetime.now()
+        duration = (now - assertIsinstance(datetime, self._tLastAdd))
+        speed: float = ((self.currentAmount - previous) / (duration.total_seconds() + self.EPSILON))
+        if self.__currentSpeed is None:
+            # => no speed currently
+            self.__currentSpeed = speed
+        else: # => update the ema
+            self.__currentSpeed = self.__currentSpeed * (1-self.emaCoef) + self.emaCoef * speed
+        self._tLastAdd = now
+        
