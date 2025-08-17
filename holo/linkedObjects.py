@@ -409,7 +409,7 @@ class History(Generic[_T]):
     
     def __init__(self, valuesType:"type[_T]|None"=None) -> None:
         """create an empty history (`valuesType` isn't used, on here for type annotation)"""
-        self.__NULL_HIST: "_HistoryNode[_T]" = _HistoryNode(...)
+        self.__NULL_HIST: "_HistoryNode[_T]" = _HistoryNode(cast(_T, object()))
         self.__values: "_HistoryNode[_T]" = self.__NULL_HIST
         """all the values, prev/current elements are the values to revert to, 
         next values are the ones to redo\ncurrent Node is the last value """
