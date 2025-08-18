@@ -1,6 +1,5 @@
 from typing import Iterator
-from .__typing import Generic, TypeVar
-from collections.abc import Mapping
+from .__typing import Mapping, TypeVar
 
 _K = TypeVar("_K")
 _V = TypeVar("_V")
