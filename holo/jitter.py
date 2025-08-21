@@ -108,7 +108,7 @@ class Jitter():
     def __call__(self, 
             definition:"_FuncDefinition", bitwidths:"set[_Bitwidth]|None"=None,
             boundedLocals:"dict[str, numba.types.Type]|None"=None, 
-            parallel:"bool|None"=None):
+            parallel:"bool|None"=None, inline:bool=False):
         """generate a numba.jit for a function with the given specifations\n
         `definition` is the type definition of the func to jit\n
         `bitwidths` the bitwidth to compile the functions with (None -> use the ones from `self`)\n
@@ -123,7 +123,8 @@ class Jitter():
         return numba.jit(
             [createDefinition(definition, bitwidth) for bitwidth in bitwidths],
             nopython=self.nopython, nogil=self.nogil, cache=self.cache,
-            locals=boundedLocals, parallel=parallel, fastmath=self.fastmath)
+            locals=boundedLocals, parallel=parallel, fastmath=self.fastmath,
+            inline=("never" if inline is False else "always"))
 
     def getJitKwargs(self)->"dict[str, bool]":
         return {"nopython": self.nopython, "nogil": self.nogil, "cache": self.cache}

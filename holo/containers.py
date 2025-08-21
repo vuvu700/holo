@@ -1,5 +1,4 @@
-from typing import Iterator
-from .__typing import Mapping, TypeVar
+from .__typing import Mapping, TypeVar, DefaultDict, Iterator
 
 _K = TypeVar("_K")
 _V = TypeVar("_V")
@@ -28,6 +27,13 @@ class Groups(Mapping[_K, _V]):
                 if (self.__strict is True) and (key in self.__keysGroups):
                     raise KeyError(f"the key: {key!r} was alredy added")
                 self.__keysGroups[key] = grpID
+    
+    def getGroups(self)->"dict[tuple[_K, ...], _V]":
+        regrouped: "dict[int, list[_K]]" = DefaultDict(list)
+        for key, grpID in self.__keysGroups.items():
+            regrouped[grpID].append(key)
+        return {tuple(regrouped[grpID]): val 
+                for (grpID, val) in self.__valuesGroups.items()}
     
     def __getitem__(self, key: _K) -> _V:
         return self.__valuesGroups[self.__keysGroups[key]]
