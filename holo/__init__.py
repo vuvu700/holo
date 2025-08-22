@@ -78,7 +78,7 @@ def patternValidation(string:str, pattern:str)->"tuple[bool, dict[str, int|float
     \t-every part with [abc] is a set of characters to ignore until the next character isn't in the set
     \t\tif writed like [a-z] the set will be all chars in the range of a to z (included), in the ascii table
     \t-every regular part of the string must be inside, in same order
-    exemple of pattern: "abcde_[fg]_<v1:d>_ <v2:d> yte <v3>" , will return {"v1":int(str), "v2":float(str)), "v3":str}
+    exemple of pattern: `"abcde_[fg]_<v1:d>_ <v2:d> yte <v3>"` , will return {"v1":int(str), "v2":float(str)), "v3":str}
     """
     def generateIgnoreCharSet(pattern:str, indexStart:int)->"tuple[set[str], int]":
         """generate the set of characters for the [...] rule and return a tuple(set of char, new index pattern)"""
@@ -155,6 +155,8 @@ def patternValidation(string:str, pattern:str)->"tuple[bool, dict[str, int|float
             varValue_startIndex:int = indexString
             varValue_endIndex:int = indexString
             if varType in ('f', 'd'): # type == 'f' or type == 'd'
+                if (varValue_endIndex < len(string)) and (string[varValue_endIndex] == "-"): # consider negative numbers
+                    varValue_endIndex += 1
                 while (varValue_endIndex < len(string)) and (string[varValue_endIndex] in "0123456789"): # as long the number is int compatible
                     varValue_endIndex += 1
 
