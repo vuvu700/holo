@@ -4,9 +4,10 @@ from decimal import Decimal, getcontext as decimal_getContext
 from .__typing import Iterable, MutableSequence, TypeVar
 from .protocols import (
     _T, _T_co, _T_contra, SupportsDivModRec,
-    SupportsLenAndGetItem, SupportsMulRec, )
+    SupportsLenAndGetItem, SupportsMulRec, SupportsAddRec, )
 
 _T_prod = TypeVar("_T_prod", bound="SupportsMulRec")
+_T_add = TypeVar("_T_add", bound="SupportsAddRec")
 _T_MutableSequence = TypeVar("_T_MutableSequence", bound=MutableSequence)
 
 decimal_getContext().prec = 28
@@ -168,5 +169,11 @@ def product(elts:Iterable[_T_prod])->_T_prod:
     elts_iter = iter(elts)
     result: "_T_prod" = next(elts_iter)
     for elt in elts_iter:
-        result *= elt
+        # not inplace => avoid unwhanted behaviours
+        result = result * elt 
     return result
+
+def sumAutoStart(elts:Iterable[_T_add])->_T_add:
+    """like the default sum but use the first element as the start value"""
+    elts_iter = iter(elts)
+    return sum(elts_iter, next(elts_iter))

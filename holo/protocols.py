@@ -90,6 +90,9 @@ SupportsRichComparisonT = TypeVar("SupportsRichComparisonT", bound=SupportsRichC
 class SupportsAdd(Protocol[_T_contra, _T_co]):
     def __add__(self, __x: _T_contra) -> _T_co: ...
 
+class SupportsAddRec(Protocol):
+    def __add__(self, __x: Self) -> Self: ...
+
 class SupportsRAdd(Protocol[_T_contra, _T_co]):
     def __radd__(self, __x: _T_contra) -> _T_co: ...
 
