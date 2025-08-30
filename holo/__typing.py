@@ -104,7 +104,12 @@ _PrettyPrintable = Union[
 
 
 
-def getLiteralArgs(t)->"list": # TODO: seems it can't be typed ?!
+@overload
+def getLiteralArgs(t:"type[_T_LiteralString]")->"list[_T_LiteralString]": ...
+@overload
+def getLiteralArgs(t)->"list": ...
+# TODO: seems it can't be typed for other than LiteralString ?!
+def getLiteralArgs(t:"Any")->"list": 
     """return a list containing all the literals in this type (can be recursive unions of literals)"""
     origin = get_origin(t)
     args = list()
@@ -120,7 +125,7 @@ def getLiteralArgs(t)->"list": # TODO: seems it can't be typed ?!
     else: raise TypeError(f"invalide origin for t: {origin}")
     return args
 
-#_convTrainSingleMetrics = Literal["nbConvStep_train", "nbConvStep_val"]
+#_convTrainSingleMetrics = Literal["nbConvStep_train", "nbConvStep_val", None]
 #res = getLiteralArgs(_convTrainSingleMetrics)
 
 
