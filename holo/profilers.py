@@ -271,12 +271,13 @@ class Profiler(Generic[_T_Category]):
 
 class SimpleProfiler(ContextManager, Generic[_T_Category]):
     """a simple profiler that hold a single mesure"""
+    __slots__ = ("name", "__setMesureFunc", "startTime", "StopTime")
 
-    def __init__(self, name:"_T_Category|None"=None, setMesureFunc:"Callable[[_T_Category, float], Any]|None"=None)->None:
-        self.name: "_T_Category|None" = name
-        self.__setMesureFunc:"Callable[[_T_Category, float], Any]|None" = setMesureFunc
-        self.startTime:"float|None" = None
-        self.StopTime:"float|None" = None
+    def __init__(self, name:"_T_Category"="", setMesureFunc:"Callable[[_T_Category, float], Any]|None"=None)->None:
+        self.name: "_T_Category" = name
+        self.__setMesureFunc: "Callable[[_T_Category, float], Any]|None" = setMesureFunc
+        self.startTime: "float|None" = None
+        self.StopTime: "float|None" = None
 
     def __enter__(self)->"Self":
         self.StopTime = None
@@ -284,18 +285,18 @@ class SimpleProfiler(ContextManager, Generic[_T_Category]):
         return self
 
     def __exit__(self, *_)->None:
+        assert self.startTime is not None, \
+            RuntimeError("__exit__ called before __enter__ (encountered self.startTime = None)")
         self.StopTime = perf_counter()
-        if self.startTime is None:
-            raise RuntimeError("__exit__ called before __enter__ (encountered self.startTime = None)")
-        if (self.__setMesureFunc is not None) and (self.name is not None): # => set the mesure
-            self.__setMesureFunc(self.name, self.StopTime - self.startTime)
+        if (self.__setMesureFunc is not None): # => set the mesure
+            self.__setMesureFunc(self.name, (self.StopTime - self.startTime))
 
     def perttyStr(self, prettyTimeFunc:"Callable[[float], str]|None"=None)->str:
         if (self.startTime is None) or (self.StopTime is None):
-            return f"SimpleProfiler({self.name}, noTime)"
+            return f"SimpleProfiler({self.name!r}, noTime)"
         if prettyTimeFunc is None: 
             prettyTimeFunc = prettyTime
-        return f"SimpleProfiler({self.name}, {prettyTimeFunc(self.StopTime - self.startTime)})"
+        return f"SimpleProfiler({self.name!r}, {prettyTimeFunc(self.StopTime - self.startTime)})"
 
     def __str__(self)->str:
         return self.perttyStr(lambda t: f"{t:.3e} sec")
