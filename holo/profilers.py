@@ -3,199 +3,230 @@ from time import perf_counter
 from datetime import datetime, timedelta
 
 from .__typing import (
-    Iterable, Callable, Any, Iterable,
+    Iterable, Callable, Any, Iterable, OrderedDict,
     Generic, TypeVar, ContextManager,
     LiteralString, Self, TypeGuard, Literal,
-    override, assertIsinstance, 
+    override, assertIsinstance, Union,
 )
 from .prettyFormats import prettyTime
 from .protocols import _T, _P
 
 
+class _ProfilerCategory():
+    """hold the mesures of a categorie"""
+    __slots__ = ("prof", "mesures", "emaMesure", "totalNb", 
+                 "totalTime", "currentMesurer", )
+    
+    def __init__(self, prof:"Profiler") -> None:
+        self.prof: Profiler = prof
+        """the profiler that store the categorie"""
+        self.mesures: "deque[float]" = deque()
+        """all the mesures stored (in sec), FIFO order"""
+        self.emaMesure: "float|None" = None
+        """the current ema of mesures (in sec)"""
+        self.totalNb: int = 0
+        """total nb of mesures"""
+        self.totalTime: float = 0.0
+        """the sum of all mesures (in sec)"""
+        self.currentMesurer: "SimpleProfiler|None" = None
+        """the current SimpleProfiler that is used to mesure this category"""
+    
+    def copy(self)->"_ProfilerCategory":
+        assert self.currentMesurer is None
+        new = _ProfilerCategory(self.prof)
+        new.mesures = self.mesures.copy()
+        new.emaMesure = self.emaMesure
+        new.totalNb = self.totalNb
+        new.totalTime = self.totalTime
+        return new
+    
+    def avgMesure(self)->"float":
+        """the global average mesure"""
+        return (0.0 if (self.totalNb == 0) else (self.totalTime / self.totalNb))
+    
+    def _update(self, newMesure:float)->None:
+        # add mesure
+        self.mesures.append(newMesure)
+        # pop exciding
+        self._popExcidingMesures()
+        # update total
+        self.totalNb += 1
+        self.totalTime += newMesure
+        # update ema
+        emaCoef: float = self.prof.emaCoef
+        if self.emaMesure is not None:
+            self.emaMesure = (self.emaMesure * (1-emaCoef) + newMesure * emaCoef)
+        else: self.emaMesure = newMesure
+    
+    def _popExcidingMesures(self)->int:
+        """pop the values when the number of mesures is over the hist size\n
+        `categorie`:str|None, str -> pop for this categorie, None -> all categories\n
+        return how much mesures where poped"""
+        histSize = self.prof.historyMaxSize
+        if histSize is None: 
+            return 0
+        nbPoped:int = 0
+        mesures = self.mesures
+        while len(mesures) > histSize:
+            mesures.popleft()
+            nbPoped += 1
+        return nbPoped
+        
+    
 
+_T_Category = TypeVar("_T_Category", bound=LiteralString)
+_T_Category2 = TypeVar("_T_Category2", bound=LiteralString)
 
-_T_Categorie = TypeVar("_T_Categorie", bound=LiteralString)
-
-class Profiler(Generic[_T_Categorie]):
+class Profiler(Generic[_T_Category]):
     """mesure the times taken to do things, and get analytics with it"""
+    __slots__ = ("_mesures", "__historyMaxSize", "emaCoef", "ignoreSimultaneousMesures", )
 
     def __init__(self,
-            categories:"list[_T_Categorie]", nbMesurements:"int|None"=None,
-            emaFactor:"None|int"=None, ignoreSimultaneousMesures:bool=False) -> None:
+            categories:"list[_T_Category]", historyMaxSize:"int|None"=None,
+            emaCoef:"float"=0.01, ignoreSimultaneousMesures:bool=False) -> None:
         """`categories`:list[str] is the names of tracked mesures\n
-        `nbMesurements`int is the max nb of mesures to keep\n
+        `historyMaxSize` is the max nb of mesures to keep | None => keep all\n
         `ignoreSimultaneousMesures`:bool is whether an error will be raised when \
             multiples mesures of the same categorie are done, \
-            or whether only the fist will be kept, other are ignored\n"""
-        self._categories:"list[_T_Categorie]" = categories
-        assert (nbMesurements != 0), ValueError
-        self.__nbMesurements:"int|None" = nbMesurements
-        self._mesures:"dict[_T_Categorie, deque[float]]" = {name: deque() for name in categories}
-        """mesures ordering: 0-> most recent, last-> oldest"""
-        self.__currentMesurers:"dict[_T_Categorie, SimpleProfiler]" = {}
-        """hold the SimpleProfiler instances to mesure each categories"""
-        self._emaMesure:"dict[_T_Categorie, float]" = {}
-        self.__emaFactor:float
-        if emaFactor is None:
-            self.__emaFactor = (1 / (10_000 if self.nbMesurements is None else self.nbMesurements))
-        else: self.__emaFactor = (1 / emaFactor)
-        self._totalMesure:"dict[_T_Categorie, float]" = {categorie: 0. for categorie in self._categories}
-        self.ignoreSimultaneousMesures:bool = ignoreSimultaneousMesures
+            or whether only the fist will be kept, other are ignored\n
+        `emaCoef` is the coef used to compute the ema of the mesures per categories"""
+        # check the values are correct
+        assert (historyMaxSize is None) or (historyMaxSize > 0)
+        assert (0.0 < emaCoef <= 1.0)
+        self._mesures: "OrderedDict[_T_Category, _ProfilerCategory]" = OrderedDict(
+            [(name, _ProfilerCategory(self)) for name in categories])
+        self.historyMaxSize = historyMaxSize
+        """the max nb of last mesures to keep per categorie | None => keep all"""
+        self.emaCoef: float = emaCoef
+        self.ignoreSimultaneousMesures: bool = ignoreSimultaneousMesures
 
-    @property
-    def categories(self)->"list[_T_Categorie]":
-        return self._categories
-    @property
-    def nbMesurements(self)->"int|None":
-        return self.__nbMesurements
-    @nbMesurements.setter
-    def nbMesurements(self, value:int)->None:
-        if value == 0: raise ValueError("nbMesurements can't be set to 0")
-        self.__nbMesurements = value
-        self.__emaFactor = (1 / self.__nbMesurements)
-        self._popExcidingMesures(None)
-    @property
-    def emaFactor(self)->int:
-        return int(1 / self.__emaFactor)
+    def extendCategories(
+            self, newCategories:"list[_T_Category2]",
+            *, inplace:bool)->"Profiler[Union[_T_Category, _T_Category2]]":
+        newProf: "Profiler[Union[_T_Category, _T_Category2]]" = \
+            (self if inplace is True else self.copy(copyMesures=True)) # type: ignore
+        for catName in newCategories:
+            assert catName not in newProf._mesures.keys()
+            newProf._mesures[catName] = _ProfilerCategory(newProf)
+        return newProf
     
-    def clean(self)->None:
-        """remove all mesures"""
-        self.__init__(self.categories, self.__nbMesurements)
+    @property
+    def categories(self)->"list[_T_Category]":
+        return list(self._mesures.keys())
+    @property
+    def historyMaxSize(self)->"int|None":
+        return self.__historyMaxSize
+    @historyMaxSize.setter
+    def historyMaxSize(self, value:"int|None")->None:
+        if value == 0: raise ValueError("nbMesurements can't be set to 0")
+        self.__historyMaxSize = value
+        self._popExcidingMesures(None)
+    
+    def _popExcidingMesures(self, categories:"list[_T_Category]|None")->int:
+        return sum(self._mesures[cat]._popExcidingMesures() 
+                   for cat in self.__getCategories(categories))
 
-    def __updateEma(self, categorie:"_T_Categorie", newMesuredTime:float)->None:
-        """compute and update the ema of the mesures for this categorie"""
-        # newEma = oldEma * (1 - alpha) + newTime * alpha
-        self._emaMesure[categorie] = (
-            self._emaMesure.get(categorie, newMesuredTime) * (1 - self.__emaFactor)
-            + newMesuredTime * self.__emaFactor
-        )
-
-    def __updateTotal(self, categorie:"_T_Categorie", newMesuredTime:float)->None:
-        """compute and update the total of the mesures for this categorie"""
-        self._totalMesure[categorie] += newMesuredTime
-
-    def addManualMesure(self, categorie:"_T_Categorie", mesuredTime:"float|SimpleProfiler")->None:
+    def addManualMesure(self, categorie:"_T_Category", mesuredTime:"float|SimpleProfiler")->None:
         if categorie not in self._mesures:
             raise KeyError(f"the mesure categorie: {categorie} don't exist")
         if isinstance(mesuredTime, SimpleProfiler):
             mesuredTime = mesuredTime.time()
-        self._mesures[categorie].appendleft(mesuredTime)
-        self._popExcidingMesures(categorie)
-        self.__updateEma(categorie, mesuredTime)
-        self.__updateTotal(categorie, mesuredTime)
+        self._mesures[categorie]._update(mesuredTime)
 
-    def _popExcidingMesures(self, categorie:"_T_Categorie|None")->int:
-        """pop the values when the number of mesures is over the hist size\n
-        `categorie`:str|None, str -> pop for this categorie, None -> all categories\n
-        return how much mesures where poped"""
-        if self.__nbMesurements is None: return 0
-        categories:"Iterable[_T_Categorie]" = (self._mesures.keys() if categorie is None else [categorie])
-        nbPoped:int = 0
-        for categorie in categories:
-            categorieMesures:"deque[float]" = self._mesures[categorie]
-            while len(categorieMesures) > self.__nbMesurements:
-                categorieMesures.pop()
-                nbPoped += 1
-        return nbPoped
+    ## per category methodes
 
-    def allMesure(self, categorie:"_T_Categorie")->"list[float]":
-        if self.hasMesure(categorie) is True:
-            return list(reversed(self._mesures[categorie])) # reversed => first to last mesure
-        raise KeyError(f"no mesures for the categorie: {categorie}")
-    def lastMesure(self, categorie:"_T_Categorie")->float:
-        if self.hasMesure(categorie) is True:
-            return self._mesures[categorie][0]
-        raise KeyError(f"no mesures for the categorie: {categorie}")
-    def avgMesure(self, categorie:"_T_Categorie")->float:
-        if self.hasMesure(categorie) is True:
-            return sum(self._mesures[categorie]) / len(self._mesures[categorie])
-        raise KeyError(f"no mesures for the categorie: {categorie}")
-    def emaMesure(self, categorie:"_T_Categorie")->float:
-        if self.hasMesure(categorie) is True:
-            return self._emaMesure[categorie]
-        raise KeyError(f"no ema mesures for the categorie: {categorie}")
-    def totalMesure(self, categorie:"_T_Categorie")->float:
-        if self.hasMesure(categorie) is True:
-            return self._totalMesure[categorie]
-        raise KeyError(f"no total mesures for the categorie: {categorie}")
+    def allMesure(self, category:"_T_Category")->"list[float]":
+        """the list of all mesures in that category (first value is the oldest)"""
+        assert self.hasMesureStored(category), f"no mesures for the categorie: {category}"
+        return list(self._mesures[category].mesures)
+    def lastMesure(self, category:"_T_Category")->float:
+        """the last mesure of that category"""
+        assert self.hasMesureStored(category), f"no mesures for the categorie: {category}"
+        return self._mesures[category].mesures[-1]
+    def avgMesure(self, category:"_T_Category")->float:
+        """the average mesure of that category (global)"""
+        assert self.hasMesured(category), f"no mesures for the categorie: {category}"
+        return self._mesures[category].avgMesure()
+    def emaMesure(self, category:"_T_Category")->float:
+        assert self.hasMesured(category), f"no mesures for the categorie: {category}"
+        emaMesure = self._mesures[category].emaMesure
+        return (0.0 if emaMesure is None else emaMesure)
+    def totalMesure(self, category:"_T_Category")->float:
+        assert self.hasMesured(category), f"no mesures for the categorie: {category}"
+        return self._mesures[category].totalTime
 
-    def allTimes(self, categories:"list[_T_Categorie]|None"=None)->"dict[_T_Categorie, list[float]]":
+    def allTimes(self, categories:"list[_T_Category]|None"=None)->"dict[_T_Category, list[float]]":
         return {categorie: self.allMesure(categorie)
-                for categorie in self.__getCategories(categories) if self.hasMesure(categorie)}
-    def lastTimes(self, categories:"list[_T_Categorie]|None"=None)->"dict[_T_Categorie, float]":
+                for categorie in self.__getCategories(categories) if self.hasMesureStored(categorie)}
+    def lastTimes(self, categories:"list[_T_Category]|None"=None)->"dict[_T_Category, float]":
         return {categorie: self.lastMesure(categorie)
-                for categorie in self.__getCategories(categories) if self.hasMesure(categorie)}
-    def avgTimes(self, categories:"list[_T_Categorie]|None"=None)->"dict[_T_Categorie, float]":
+                for categorie in self.__getCategories(categories) if self.hasMesureStored(categorie)}
+    def avgTimes(self, categories:"list[_T_Category]|None"=None)->"dict[_T_Category, float]":
         return {categorie: self.avgMesure(categorie)
-                for categorie in self.__getCategories(categories) if self.hasMesure(categorie)}
-    def emaTimes(self, categories:"list[_T_Categorie]|None"=None)->"dict[_T_Categorie, float]":
+                for categorie in self.__getCategories(categories) if self.hasMesured(categorie)}
+    def emaTimes(self, categories:"list[_T_Category]|None"=None)->"dict[_T_Category, float]":
         return {categorie: self.emaMesure(categorie)
-                for categorie in self.__getCategories(categories) if self.hasEmaMesure(categorie)}
-    def totalTimes(self, categories:"list[_T_Categorie]|None"=None)->"dict[_T_Categorie, float]":
+                for categorie in self.__getCategories(categories) if self.hasMesured(categorie)}
+    def totalTimes(self, categories:"list[_T_Category]|None"=None)->"dict[_T_Category, float]":
         return {categorie: self.totalMesure(categorie)
-                for categorie in self.__getCategories(categories) if self.hasMesure(categorie)}
+                for categorie in self.__getCategories(categories) if self.hasMesured(categorie)}
     
-    def str_allTimes(self,
+    def pretty_allTimes(self,
             formatTimes:"Callable[[float], str]|None"=None,
-            categories:"list[_T_Categorie]|None"=None)->"dict[_T_Categorie, list[str]]":
-        if formatTimes is None: formatTimes = str
-        return {categorie: [formatTimes(timeVal) for timeVal in  self.allMesure(categorie)]
-                for categorie in self.__getCategories(categories) if self.hasMesure(categorie)}
-    def str_lastTimes(self,
+            categories:"list[_T_Category]|None"=None)->"dict[_T_Category, list[str]]":
+        if formatTimes is None: formatTimes = prettyTime
+        return {name: [formatTimes(timeVal) for timeVal in mesures] 
+                for name, mesures in self.allTimes(categories).items()}
+    def pretty_lastTimes(self,
             formatTimes:"Callable[[float], str]|None"=None,
-            categories:"list[_T_Categorie]|None"=None)->"dict[_T_Categorie, str]":
-        if formatTimes is None: formatTimes = str
-        return {categorie: formatTimes(self.lastMesure(categorie))
-                for categorie in self.__getCategories(categories) if self.hasMesure(categorie)}
-    def str_avgTimes(self,
+            categories:"list[_T_Category]|None"=None)->"dict[_T_Category, str]":
+        if formatTimes is None: formatTimes = prettyTime
+        return {name: formatTimes(timeVal) for name, timeVal in self.lastTimes(categories).items()}
+    def pretty_avgTimes(self,
             formatTimes:"Callable[[float], str]|None"=None,
-            categories:"list[_T_Categorie]|None"=None)->"dict[_T_Categorie, str]":
-        if formatTimes is None: formatTimes = str
-        return {categorie: formatTimes(self.avgMesure(categorie))
-                for categorie in self.__getCategories(categories) if self.hasMesure(categorie)}
-    def str_emaTimes(self,
+            categories:"list[_T_Category]|None"=None)->"dict[_T_Category, str]":
+        if formatTimes is None: formatTimes = prettyTime
+        return {name: formatTimes(timeVal) for name, timeVal in self.avgTimes(categories).items()}
+    def pretty_emaTimes(self,
             formatTimes:"Callable[[float], str]|None"=None,
-            categories:"list[_T_Categorie]|None"=None)->"dict[_T_Categorie, str]":
-        if formatTimes is None: formatTimes = str
-        return {categorie: formatTimes(self.emaMesure(categorie))
-                for categorie in self.__getCategories(categories) if self.hasMesure(categorie)}
-    def str_totalTimes(self,
+            categories:"list[_T_Category]|None"=None)->"dict[_T_Category, str]":
+        if formatTimes is None: formatTimes = prettyTime
+        return {name: formatTimes(timeVal) for name, timeVal in self.emaTimes(categories).items()}
+    def pretty_totalTimes(self,
             formatTimes:"Callable[[float], str]|None"=None,
-            categories:"list[_T_Categorie]|None"=None)->"dict[_T_Categorie, str]":
-        if formatTimes is None: formatTimes = str
-        return {categorie: formatTimes(self.totalMesure(categorie))
-                for categorie in self.__getCategories(categories) if self.hasMesure(categorie)}
-
-    def __getCategories(self, categories:"list[_T_Categorie]|None")->"Iterable[_T_Categorie]":
+            categories:"list[_T_Category]|None"=None)->"dict[_T_Category, str]":
+        if formatTimes is None: formatTimes = prettyTime
+        return {name: formatTimes(timeVal) for name, timeVal in self.totalTimes(categories).items()}
+    
+    def __getCategories(self, categories:"list[_T_Category]|None")->"list[_T_Category]":
         return (self.categories if categories is None else categories)
 
-    def mesure(self, categorie:"_T_Categorie")->"SimpleProfiler":
+    def mesure(self, categorie:"_T_Category")->"SimpleProfiler":
         """to be used in:\n
         ```
         with profiler.mesure("categorie"):
             ... # code to mesure
         ```"""
-        if categorie in self.__currentMesurers:
+        if self._mesures[categorie].currentMesurer is not None:
             if self.ignoreSimultaneousMesures is False:
                 raise RuntimeError(f"the profiler({self}) is alredy monitoring the categorie: {categorie}")
             else: # don't regiter it, will not add any mesure to self
                 return SimpleProfiler(categorie)
-
         simpleProfiler:"SimpleProfiler" = SimpleProfiler(categorie, self._setMesure)
-        self.__currentMesurers[categorie] = simpleProfiler
+        self._mesures[categorie].currentMesurer = simpleProfiler
         return simpleProfiler
 
-    def _setMesure(self, categorie:"_T_Categorie", mesuredTime:float)->None:
+    def _setMesure(self, categorie:"_T_Category", mesuredTime:float)->None:
         """internal function for mesure(...) to add the mesure"""
         self.addManualMesure(categorie, mesuredTime)
-        self.__currentMesurers.pop(categorie)
+        self._mesures[categorie].currentMesurer = None
 
-    def hasMesure(self, categorie:"_T_Categorie")->bool:
-        return (len(self._mesures[categorie]) != 0)
-    def hasEmaMesure(self, categorie:"_T_Categorie")->bool:
-        return categorie in self._emaMesure
+    def hasMesureStored(self, categorie:"_T_Category")->bool:
+        return (len(self._mesures[categorie].mesures) > 0)
+    def hasMesured(self, categorie:"_T_Category")->bool:
+        return (self._mesures[categorie].totalNb > 0)
 
-    def wrapper(self, categorie:"_T_Categorie")->Callable[[Callable[_P, _T]], Callable[_P, _T]]:
+    def wrapper(self, categorie:"_T_Category")->Callable[[Callable[_P, _T]], Callable[_P, _T]]:
         def wrapper(func:Callable[_P, _T])->Callable[_P, _T]:
             def wrappedFunc(*args:_P.args, **kwargs:_P.kwargs)->_T:
                 startTime = perf_counter()
@@ -204,53 +235,46 @@ class Profiler(Generic[_T_Categorie]):
             return wrappedFunc
         return wrapper
 
-    def reset(self, categorie:"_T_Categorie|None"=None)->None:
+    def reset(self, categorie:"_T_Category|None"=None)->None:
         """reset a specific `categorie` or all if None is given"""
         if categorie is None:
-            for categorie in self._categories: self.reset(categorie)
+            # => reset all
+            for categorie in self.categories: 
+                self.reset(categorie)
             return None
-        self._mesures[categorie].clear()
-        if categorie in self._emaMesure:
-            del self._emaMesure[categorie]
-        self._totalMesure[categorie] = 0.
+        # => single category
+        self._mesures[categorie].__init__(self)
     
-    def copy(self, copyMesures:bool=False)->"Profiler[_T_Categorie]":
+    def copy(self, copyMesures:bool=False)->"Profiler[_T_Category]":
         """copy the Profiler, can't copy when self is mesuring\n
         if `copyMesures` is False, don't copy the mesures, only the config"""
-        if len(self.__currentMesurers) != 0:
-            raise RuntimeError(f"can't copy while mesuring (messurers that are still active: {self.__currentMesurers.keys()})")
-        newProfiler:"Profiler[_T_Categorie]" = \
-            Profiler(
-                categories=self.categories, 
-                nbMesurements=self.nbMesurements,
-                emaFactor=self.emaFactor,
-                ignoreSimultaneousMesures= \
-                    self.ignoreSimultaneousMesures,
-            )
+        # check there are no active mesureur
+        activeMesureurs: "list[_T_Category]" = []
+        for categorie, datas in self._mesures.items():
+            if datas.currentMesurer is not None:
+                activeMesureurs.append(categorie)
+        if len(activeMesureurs) > 0:
+            raise RuntimeError(f"can't copy while mesuring (mesurers that are still active: {activeMesureurs})")
+        # => can copy
+        newProfiler:"Profiler[_T_Category]" = Profiler(
+            categories=self.categories, historyMaxSize=self.historyMaxSize,
+            emaCoef=self.emaCoef, ignoreSimultaneousMesures=self.ignoreSimultaneousMesures)
         if copyMesures is False:
-            # => done
-            return newProfiler
-        # => copy the messures
+            return newProfiler # => done
+        # => copy the mesures
         for (categorie, mesures) in self._mesures.items():
-            newProfiler._mesures[categorie] = \
-                mesures.copy()
-        # => copy the ema mesures
-        for (categorie, emaMesure) in self._emaMesure.items():
-            newProfiler._emaMesure[categorie] = emaMesure
-        # => copy the total mesures
-        for (categorie, totalMesure) in self._totalMesure.items():
-            newProfiler._totalMesure[categorie] = totalMesure
+            newProfiler._mesures[categorie] = mesures.copy()
         return newProfiler
         
-    def isCategorie(self, categorie:str)->"TypeGuard[_T_Categorie]":
+    def isCategorie(self, categorie:str)->"TypeGuard[_T_Category]":
         return categorie in self._mesures.keys()
 
-class SimpleProfiler(ContextManager, Generic[_T_Categorie]):
+class SimpleProfiler(ContextManager, Generic[_T_Category]):
     """a simple profiler that hold a single mesure"""
 
-    def __init__(self, name:"_T_Categorie|None"=None, setMesureFunc:"Callable[[_T_Categorie, float], Any]|None"=None)->None:
-        self.name: "_T_Categorie|None" = name
-        self.__setMesureFunc:"Callable[[_T_Categorie, float], Any]|None" = setMesureFunc
+    def __init__(self, name:"_T_Category|None"=None, setMesureFunc:"Callable[[_T_Category, float], Any]|None"=None)->None:
+        self.name: "_T_Category|None" = name
+        self.__setMesureFunc:"Callable[[_T_Category, float], Any]|None" = setMesureFunc
         self.startTime:"float|None" = None
         self.StopTime:"float|None" = None
 
