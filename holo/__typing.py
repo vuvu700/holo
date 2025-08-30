@@ -104,19 +104,19 @@ _PrettyPrintable = Union[
 
 
 
-def getLiteralArgs(t)->"set": # TODO: seems it can't be typed ?!
-    """return a set containing all the literals in this type (can be recursive unions of literals)"""
+def getLiteralArgs(t)->"list": # TODO: seems it can't be typed ?!
+    """return a list containing all the literals in this type (can be recursive unions of literals)"""
     origin = get_origin(t)
-    args = set()
+    args = list()
     if origin == Literal:
         for arg in get_args(t):
             if get_origin(arg) == None:
-                args.add(arg)
+                args.append(arg)
             else: # => is a generic alias
-                args.update(getLiteralArgs(arg))
+                args.extend(getLiteralArgs(arg))
     elif origin == Union:
         for subT in get_args(t):
-            args.update(getLiteralArgs(subT))
+            args.extend(getLiteralArgs(subT))
     else: raise TypeError(f"invalide origin for t: {origin}")
     return args
 
