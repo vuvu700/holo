@@ -326,15 +326,26 @@ class IterableSized(Generic[_T]):
 
 
 def getDuplicated(allItems:"Iterable[_T]")->"set[_T]":
-    encountered: set[_T] = set()
-    duplicated: set[_T] = set()
+    encountered: "set[_T]" = set()
+    duplicated: "set[_T]" = set()
     for item in allItems:
         if item not in encountered:
             encountered.add(item)
         else: duplicated.add(item)
     return duplicated
 
-def batched(elements:"list[_T]", batchSize:int)->"list[list[_T]]":
+def filterDuplicated(allItems:"Iterable[_T]")->"list[_T]":
+    newList: "list[_T]" = []
+    encountered: "set[_T]" = set()
+    for item in allItems:
+        if item not in encountered:
+            # => first time seeing it
+            encountered.add(item)
+            newList.append(item)
+        # else: => duplicated
+    return newList
+
+def batched(elements:"Iterable[_T]", batchSize:int)->"list[list[_T]]":
     all_batch: "list[list[_T]]" = []
     batch: "list[_T]" = []
     for elt in elements:
@@ -349,6 +360,9 @@ def batched(elements:"list[_T]", batchSize:int)->"list[list[_T]]":
     return all_batch
 
 
+def flatten(elts:"Iterable[Iterable[_T]]")->"Iterator[_T]":
+    for elt in elts:
+        yield from elt
 
 
 class MapDict(Iterator[Tuple[_T_Key, _T_Value]]):
