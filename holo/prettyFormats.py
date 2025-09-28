@@ -804,17 +804,21 @@ class SingleLinePrinter():
     def file(self, newFile:"TextIO|None")->"None":
         self.__file = newFile
 
-    def clearLine(self)->None:
+    def clearLine(self, flush:bool=True)->None:
         self.file.write("\r")
         self.file.write(" " * self.__currentLineLength)
         self.file.write("\r")
+        if flush is True:
+            self.file.flush()
         self.__currentLineLength = 0
     
-    def print(self, text:str)->None:
+    def print(self, text:str, flush:bool=True)->None:
         """clear the current line and print the new `text`, 
         the `text` must be single lined"""
-        self.clearLine()
+        self.clearLine(flush=False)
         self.write(text=text)
+        if flush is True:
+            self.file.flush()
     
     def validateText(self, text:str)->None:
         for bannedChr in ("\r", "\n", "\b"):
@@ -822,11 +826,13 @@ class SingleLinePrinter():
             if pos != -1:
                 raise ValueError(f"the text can't contain: {bannedChr} at index: {pos}")
         
-    def write(self, text:str)->None:
+    def write(self, text:str, flush:bool=True)->None:
         """continue printing on the current line, the text must be single lined"""
         self.validateText(text=text)
-        res = self.file.write(text)
+        self.file.write(text)
         self.__currentLineLength += len(text)
+        if flush is True: 
+            self.file.flush()
 
 def NDigitsRounding(x:float, nbDigits:int)->float:
     return float(f"{x:.{nbDigits}g}")
