@@ -14,9 +14,9 @@ from .protocols import _T, _P
 
 class _ProfilerCategory():
     """hold the mesures of a categorie"""
-    __slots__ = ("prof", "mesures", "emaMesure", "totalNb", 
-                 "totalTime", "currentMesurer", )
-    
+    __slots__ = ("prof", "mesures", "emaMesure", "totalNb",
+                 "totalTime", "currentMesurer", "__totalSquaredTime")
+
     def __init__(self, prof:"Profiler") -> None:
         self.prof: Profiler = prof
         """the profiler that store the categorie"""
@@ -28,6 +28,8 @@ class _ProfilerCategory():
         """total nb of mesures"""
         self.totalTime: float = 0.0
         """the sum of all mesures (in sec)"""
+        self.__totalSquaredTime: float = 0.0
+        """in order to compute the running stdTime"""
         self.currentMesurer: "SimpleProfiler|None" = None
         """the current SimpleProfiler that is used to mesure this category"""
     
@@ -44,6 +46,11 @@ class _ProfilerCategory():
         """the global average mesure"""
         return (0.0 if (self.totalNb == 0) else (self.totalTime / self.totalNb))
     
+    def stdMesure(self)->float:
+        if self.totalNb < 2:
+            return 0.0
+        return ((self.__totalSquaredTime - (self.totalTime**2 / self.totalNb)) / (self.totalNb - 1)) ** 0.5
+    
     def _update(self, newMesure:float)->None:
         # add mesure
         self.mesures.append(newMesure)
@@ -57,6 +64,8 @@ class _ProfilerCategory():
         if self.emaMesure is not None:
             self.emaMesure = (self.emaMesure * (1-emaCoef) + newMesure * emaCoef)
         else: self.emaMesure = newMesure
+        # update for the std
+        self.__totalSquaredTime += newMesure ** 2
     
     def _popExcidingMesures(self)->int:
         """pop the values when the number of mesures is over the hist size\n
@@ -154,6 +163,9 @@ class Profiler(Generic[_T_Category]):
     def totalMesure(self, category:"_T_Category")->float:
         assert self.hasMesured(category), f"no mesures for the categorie: {category}"
         return self._mesures[category].totalTime
+    def stdMesure(self, category:"_T_Category")->float:
+        assert self.hasMesured(category), f"no mesures for the categorie: {category}"
+        return self._mesures[category].stdMesure()
 
     def allTimes(self, categories:"list[_T_Category]|None"=None)->"dict[_T_Category, list[float]]":
         return {categorie: self.allMesure(categorie)
@@ -169,6 +181,9 @@ class Profiler(Generic[_T_Category]):
                 for categorie in self.__getCategories(categories) if self.hasMesured(categorie)}
     def totalTimes(self, categories:"list[_T_Category]|None"=None)->"dict[_T_Category, float]":
         return {categorie: self.totalMesure(categorie)
+                for categorie in self.__getCategories(categories) if self.hasMesured(categorie)}
+    def stdTimes(self, categories:"list[_T_Category]|None"=None)->"dict[_T_Category, float]":
+        return {categorie: self.stdMesure(categorie)
                 for categorie in self.__getCategories(categories) if self.hasMesured(categorie)}
     
     def pretty_allTimes(self,
@@ -197,6 +212,16 @@ class Profiler(Generic[_T_Category]):
             categories:"list[_T_Category]|None"=None)->"dict[_T_Category, str]":
         if formatTimes is None: formatTimes = prettyTime
         return {name: formatTimes(timeVal) for name, timeVal in self.totalTimes(categories).items()}
+    def pretty_stdTimes(self,
+            formatTimes:"Callable[[float], str]|None"=None,
+            categories:"list[_T_Category]|None"=None)->"dict[_T_Category, str]":
+        if formatTimes is None: formatTimes = prettyTime
+        return {name: formatTimes(timeVal) for name, timeVal in self.stdTimes(categories).items()}
+    def pretty_avgWithStdTimes(self,
+            formatTimes:"Callable[[float, float], str]|None"=None,
+            categories:"list[_T_Category]|None"=None)->"dict[_T_Category, str]":
+        if formatTimes is None: formatTimes = lambda avg, std: f"{prettyTime(avg)} \u00b1{prettyTime(std)}"
+        return {name: formatTimes(timeVal, self.stdMesure(name)) for name, timeVal in self.avgTimes(categories).items()}
     
     def __getCategories(self, categories:"list[_T_Category]|None")->"list[_T_Category]":
         return (self.categories if categories is None else categories)
