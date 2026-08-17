@@ -782,6 +782,13 @@ class ProgressBar():
     
     def step(self, byAmount:int=1)->None:
         self.estimator.addAmount(toAdd=byAmount)
+        self._update()
+    
+    def setAmount(self, newAmount:int)->None:
+        self.estimator.setAmount(newAmount=newAmount)
+        self._update()
+    
+    def _update(self)->None:
         if self.estimator.isFinished() is True:
             self.sl.print(f"finished {self.taskName} in {self.estimator.estimatedPrettyTotalTime()}")
             if self.newLineWhenFinished is True:
