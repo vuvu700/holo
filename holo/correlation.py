@@ -81,7 +81,7 @@ def calcError(array:_2dArray_Float)->_2dArray_Float:
     kernelArea:int = (1 + 2*kernelSize) ** 2
     return result / (nbRows * nbRows) / kernelArea
 
-def calcErrorSum(array:_2dArray_Float)->float:
+def calcErrorSum(array:_2dArray_Float)->numpy.floating:
     nbRows, nbCols = array.shape
     xHalf, yHalf = nbRows//2, nbCols//2
     errorMatrix:_2dArray_Float = calcError(array)
@@ -108,8 +108,8 @@ def calcSwaps(array:_2dArray_Float, nbStepMax:"int|None"=None, verbose:bool=Fals
     alreadySwappedRows:"list[int]" = []
     alreadySwappedCols:"list[int]" = []
 
-    pervErrorSum:float
-    newErrorSum:float
+    pervErrorSum: numpy.floating
+    newErrorSum: numpy.floating
     errorMatrixRows:_2dArray_Float
     errorMatrixCols:_2dArray_Float
     errorTableRows:"list[tuple[float, int, int]]"
@@ -275,8 +275,8 @@ def computeRegroupedMatrix(
         you can also keep the best of `nbIterations` of randomization\n
     return a copy of the `matrix` (with the swaps applied to regroup the values) and the new order\n"""
     #raise NotImplementedError("nbIter not implemented")
-    bestErrorSum:float = calcErrorSum(matrix)
-    newErrorSum:float
+    bestErrorSum: numpy.floating = calcErrorSum(matrix)
+    newErrorSum: numpy.floating
     bestRowsAll:"list[int]" = list(range(matrix.shape[0]))
     bestColsAll:"list[int]" = list(range(matrix.shape[1]))
 

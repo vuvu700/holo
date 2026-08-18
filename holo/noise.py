@@ -28,7 +28,7 @@ def _lerp(a, b, x:_2dArray_Float)->_2dArray_Float:
     "linear interpolation"
     return a + x * (b - a)
 
-def _fade(t):
+def _fade(t:_2dArray_Float)->_2dArray_Float:
     "6t^5 - 15t^4 + 10t^3"
     return 6 * t**5 - 15 * t**4 + 10 * t**3
 
