@@ -5,6 +5,7 @@ from datetime import timedelta
 import re
 from copy import deepcopy
 import warnings
+import time
 
 
 from .calc import divmod_rec
@@ -793,11 +794,17 @@ class PrettyfyClass(ClassFactory):
 
 
 class SingleLinePrinter():
-    __slots__ = ("__file", "__currentLineLength", )
+    __slots__ = ("__file", "__currentLineLength", "__minDelay", "__t_lastPrint", )
     
-    def __init__(self, file:"TextIO|None")->None:
+    def __init__(self, file:"TextIO|None"=None, minPrintDelay:"float|None"=None)->None:
+        """
+        :param file: None -> stdout | TextIO -> custom
+        :param minDelay: None -> no delay | float -> minimum time between each self.print(...)
+        """
         self.__file: "TextIO|None" = file
         self.__currentLineLength: int = 0
+        self.__minDelay: float|None = minPrintDelay
+        self.__t_lastPrint: float|None = None
 
     @property
     def file(self)->"TextIO":
@@ -814,13 +821,24 @@ class SingleLinePrinter():
             self.file.flush()
         self.__currentLineLength = 0
     
-    def print(self, text:str, flush:bool=True)->None:
-        """clear the current line and print the new `text`, 
-        the `text` must be single lined"""
+    def print(self, text:str, flush:bool=True)->bool:
+        """clear the current line and print the new `text` 
+        :param text: must be single lined (no special chars like \\n, \\r, \\b)
+        :return: whether it has printed to the terminal
+        """
+        if not self._canPrint():
+            return False # => need to wait
         self.clearLine(flush=False)
         self.write(text=text)
         if flush is True:
             self.file.flush()
+        # ensure delay isn't eaten by the print itself (not exactly true delay)
+        self.__t_lastPrint = time.perf_counter()
+        return True
+    
+    def _canPrint(self)->bool:
+        return (self.__minDelay is None) or (self.__t_lastPrint is None) or \
+            ((time.perf_counter() - self.__t_lastPrint) > self.__minDelay)
     
     def validateText(self, text:str)->None:
         for bannedChr in ("\r", "\n", "\b"):
